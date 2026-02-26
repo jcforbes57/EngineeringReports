@@ -154,8 +154,12 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 
 	// $scales_extra: keyed by axis id ('y','y1','y2'…).
 	//   'y' is merged into the default left axis; any other key adds an extra axis.
-	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = []): void {
+	// $int_labels: when true the data-label formatter always uses toFixed(0) (integer values).
+	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = [], bool $int_labels = false): void {
 		$ds_json = json_encode($datasets, JSON_UNESCAPED_UNICODE);
+		$formatter_js = $int_labels
+			? 'function(v){if(v===null||v===undefined)return null;var n=parseFloat(v);return isNaN(n)?null:n.toFixed(0);}'
+			: 'function(value){if(value===null||value===undefined)return null;var v=parseFloat(value);if(isNaN(v))return null;if(Math.abs(v)>=100)return v.toFixed(0);if(Math.abs(v)>=10)return v.toFixed(1);return v.toFixed(2);}';
 
 		$y_cfg = array_merge([
 			'ticks' => ['color' => '#50505c', 'font' => ['size' => 11]],
@@ -202,14 +206,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 								return 4 + Math.floor(ctx.datasetIndex / 2) * 14;
 							},
 							padding: 0,
-							formatter: function(value) {
-								if (value === null || value === undefined) return null;
-								var v = parseFloat(value);
-								if (isNaN(v)) return null;
-								if (Math.abs(v) >= 100) return v.toFixed(0);
-								if (Math.abs(v) >= 10)  return v.toFixed(1);
-								return v.toFixed(2);
-							}
+							formatter: {$formatter_js}
 						},
 						legend: {
 							labels: { color: '#7a7a88', font: { size: 11 }, boxWidth: 18 }
@@ -366,8 +363,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<section class="chart-section">
 		<h2>Performance</h2>
 		<?= warnings_html($section_warnings['performance']) ?>
-		<div class="chart-grid">
-			<div class="chart-wrap">
+		<div class="chart-col">
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_speed"></canvas>
 				</div>
@@ -382,7 +379,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			render_chart('ch_speed', $ds, 'km/h');
 			?>
 
-			<div class="chart-wrap">
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_laptime"></canvas>
 				</div>
@@ -403,8 +400,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<section class="chart-section">
 		<h2>Engine Temps</h2>
 		<?= warnings_html($section_warnings['engine']) ?>
-		<div class="chart-grid">
-			<div class="chart-wrap">
+		<div class="chart-col">
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_eng_water"></canvas>
 				</div>
@@ -419,7 +416,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			render_chart('ch_eng_water', $ds, '°C');
 			?>
 
-			<div class="chart-wrap">
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_intake_temp"></canvas>
 				</div>
@@ -437,60 +434,64 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	</section>
 
 	<!-- ═══════════════════════════════════════════════════════════════════════
-	     SECTION 5 — LIFE DATA
+	     SECTION 5 — DRIVER SETTINGS
 	     ═══════════════════════════════════════════════════════════════════════ -->
 	<section class="chart-section">
-		<h2>Life Data</h2>
-		<?= warnings_html($section_warnings['life']) ?>
-		<div class="chart-grid">
-
-			<!-- ABS / intervention chart -->
-			<div class="chart-wrap">
+		<h2>Driver Settings</h2>
+		<div class="chart-col">
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_abs"></canvas>
 				</div>
 			</div>
 			<?php
+			// Use _Avg suffix — settings are constant within a lap so _Change is always 0.
 			$ds = [
-				chart_dataset('ManABS Setting', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Change')),
-				chart_dataset('Man1 Setting',   '#4a9eff', lap_series($laps, 'Man1_4_FBO_Change')),
-				chart_dataset('Man2 Setting',   '#a880f0', lap_series($laps, 'Man2_4_FBO_Change')),
+				chart_dataset('ManABS', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Avg')),
+				chart_dataset('Man1',   '#4a9eff', lap_series($laps, 'Man1_4_FBO_Avg')),
+				chart_dataset('Man2',   '#a880f0', lap_series($laps, 'Man2_4_FBO_Avg')),
 			];
-			render_chart('ch_abs', $ds, 'setting', ['y' => ['min' => 0, 'max' => 5]]);
-
-			// ── Odometer + LTC_Max stat tiles ─────────────────────────────────
-			// Show the last-lap End value and session delta (last − first lap).
-			$first_lap = $laps[0];
-			$last_lap  = $laps[count($laps) - 1];
-
-			$stat_items = [
-				['label' => 'Odometer',           'key' => 'Odometer_End',  'unit' => 'km', 'dp' => 1],
-				['label' => 'ABS Life (LTC_Max)',  'key' => 'LTC_Max_End',   'unit' => '',   'dp' => 1],
-			];
+			render_chart('ch_abs', $ds, 'setting', ['y' => ['min' => 0, 'max' => 5, 'ticks' => ['stepSize' => 1]]], true);
 			?>
+		</div>
+	</section>
 
-			<!-- Stat tiles: Odometer + LTC_Max -->
-			<div class="chart-wrap stat-tiles-wrap">
-				<?php foreach ($stat_items as $item):
-					$val   = isset($last_lap[$item['key']])  && is_numeric($last_lap[$item['key']])  ? (float)$last_lap[$item['key']]  : null;
-					$start = isset($first_lap[$item['key']]) && is_numeric($first_lap[$item['key']]) ? (float)$first_lap[$item['key']] : null;
-					$delta = ($val !== null && $start !== null) ? $val - $start : null;
-				?>
-				<div class="stat-tile">
-					<div class="stat-tile-label"><?= htmlspecialchars($item['label']) ?></div>
-					<div class="stat-tile-value">
-						<?= $val !== null ? number_format($val, $item['dp']) : '—' ?>
-						<?php if ($item['unit']): ?><span class="stat-tile-unit"><?= htmlspecialchars($item['unit']) ?></span><?php endif; ?>
-					</div>
-					<?php if ($delta !== null): ?>
-					<div class="stat-tile-delta <?= $delta > 0.05 ? 'up' : ($delta < -0.05 ? 'down' : 'neutral') ?>">
-						<?= $delta > 0.05 ? '↑' : ($delta < -0.05 ? '↓' : '') ?><?= number_format(abs($delta), $item['dp']) ?>
-					</div>
-					<?php endif; ?>
+	<!-- ═══════════════════════════════════════════════════════════════════════
+	     SECTION 6 — LIFE DATA
+	     ═══════════════════════════════════════════════════════════════════════ -->
+	<section class="chart-section">
+		<h2>Life Data</h2>
+		<?= warnings_html($section_warnings['life']) ?>
+		<?php
+		// ── Odometer + LTC_Max stat tiles ─────────────────────────────────
+		// Show the last-lap End value and session delta (last − first lap).
+		$first_lap = $laps[0];
+		$last_lap  = $laps[count($laps) - 1];
+
+		$stat_items = [
+			['label' => 'Odometer',          'key' => 'Odometer_End', 'unit' => 'km', 'dp' => 1],
+			['label' => 'ABS Life (LTC_Max)', 'key' => 'LTC_Max_End',  'unit' => '',   'dp' => 1],
+		];
+		?>
+		<div class="stat-tiles-wrap">
+			<?php foreach ($stat_items as $item):
+				$val   = isset($last_lap[$item['key']])  && is_numeric($last_lap[$item['key']])  ? (float)$last_lap[$item['key']]  : null;
+				$start = isset($first_lap[$item['key']]) && is_numeric($first_lap[$item['key']]) ? (float)$first_lap[$item['key']] : null;
+				$delta = ($val !== null && $start !== null) ? $val - $start : null;
+			?>
+			<div class="stat-tile">
+				<div class="stat-tile-label"><?= htmlspecialchars($item['label']) ?></div>
+				<div class="stat-tile-value">
+					<?= $val !== null ? number_format($val, $item['dp']) : '—' ?>
+					<?php if ($item['unit']): ?><span class="stat-tile-unit"><?= htmlspecialchars($item['unit']) ?></span><?php endif; ?>
 				</div>
-				<?php endforeach; ?>
+				<?php if ($delta !== null): ?>
+				<div class="stat-tile-delta <?= $delta > 0.05 ? 'up' : ($delta < -0.05 ? 'down' : 'neutral') ?>">
+					<?= $delta > 0.05 ? '↑' : ($delta < -0.05 ? '↓' : '') ?><?= number_format(abs($delta), $item['dp']) ?>
+				</div>
+				<?php endif; ?>
 			</div>
-
+			<?php endforeach; ?>
 		</div>
 	</section>
 

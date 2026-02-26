@@ -79,6 +79,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<link rel="stylesheet" href="mg1.css">
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 	<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
+	<script>Chart.register(ChartDataLabels);</script>
 </head>
 <body>
 
@@ -137,7 +138,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			'borderColor' => $color,
 			'borderWidth' => $fleet ? 1 : 2,
 			'pointRadius' => $fleet ? 0 : 3,
-			'tension'     => 0.3,
+			'tension'     => 0,
 		];
 		if ($fleet) {
 			$base['borderDash']      = [4, 4];
@@ -146,6 +147,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		} else {
 			$base['backgroundColor'] = $color . '22';
 			$base['fill']            = false;
+			$base['datalabels']      = ['color' => $color];
 		}
 		return array_merge($base, $extra);
 	}
@@ -189,7 +191,6 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
 						datalabels: {
-							color: '#c8c8d4',
 							font: { size: 10, weight: '600' },
 							anchor: 'end',
 							align: 'top',
@@ -435,6 +436,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		<h2>Life Data</h2>
 		<?= warnings_html($section_warnings['life']) ?>
 		<div class="chart-grid">
+
+			<!-- ABS / intervention chart -->
 			<div class="chart-wrap">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_abs"></canvas>
@@ -447,9 +450,41 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				chart_dataset('Man2 interventions', '#a880f0', lap_series($laps, 'Man2_4_FBO_Change')),
 			];
 			render_chart('ch_abs', $ds, 'count');
+
+			// ── Odometer + LTC_Max stat tiles ─────────────────────────────────
+			// Show the last-lap End value and session delta (last − first lap).
+			$first_lap = $laps[0];
+			$last_lap  = $laps[count($laps) - 1];
+
+			$stat_items = [
+				['label' => 'Odometer',          'key' => 'OdometerKm_End', 'unit' => 'km', 'dp' => 1],
+				['label' => 'ABS Life (LTC_Max)', 'key' => 'LTC_Max',        'unit' => '',   'dp' => 1],
+			];
 			?>
 
+			<!-- Stat tiles: Odometer + LTC_Max -->
+			<div class="chart-wrap stat-tiles-wrap">
+				<?php foreach ($stat_items as $item):
+					$val   = isset($last_lap[$item['key']])  && is_numeric($last_lap[$item['key']])  ? (float)$last_lap[$item['key']]  : null;
+					$start = isset($first_lap[$item['key']]) && is_numeric($first_lap[$item['key']]) ? (float)$first_lap[$item['key']] : null;
+					$delta = ($val !== null && $start !== null) ? $val - $start : null;
+				?>
+				<div class="stat-tile">
+					<div class="stat-tile-label"><?= htmlspecialchars($item['label']) ?></div>
+					<div class="stat-tile-value">
+						<?= $val !== null ? number_format($val, $item['dp']) : '—' ?>
+						<?php if ($item['unit']): ?><span class="stat-tile-unit"><?= htmlspecialchars($item['unit']) ?></span><?php endif; ?>
+					</div>
+					<?php if ($delta !== null): ?>
+					<div class="stat-tile-delta <?= $delta > 0.05 ? 'up' : ($delta < -0.05 ? 'down' : 'neutral') ?>">
+						<?= $delta > 0.05 ? '↑' : ($delta < -0.05 ? '↓' : '') ?><?= number_format(abs($delta), $item['dp']) ?>
+					</div>
+					<?php endif; ?>
+				</div>
+				<?php endforeach; ?>
 			</div>
+
+		</div>
 	</section>
 
 </main>

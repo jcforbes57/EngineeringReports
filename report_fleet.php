@@ -168,7 +168,7 @@ function fleet_lap_series(array $laps, string $key, array $lap_keys): array {
 					'backgroundColor' => $color . '22',
 					'borderWidth'     => 2,
 					'pointRadius'     => 2,
-					'tension'         => 0.3,
+					'tension'         => 0,
 					'fill'            => false,
 				];
 			}

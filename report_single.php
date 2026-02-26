@@ -191,11 +191,16 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
 						datalabels: {
-							display: 'auto',
+							display: true,
+							clamp: true,
 							font: { size: 10, weight: '600' },
 							anchor: 'end',
-							align: 'top',
-							offset: 2,
+							align: function(ctx) {
+								return ctx.datasetIndex % 2 === 0 ? 'top' : 'bottom';
+							},
+							offset: function(ctx) {
+								return 4 + Math.floor(ctx.datasetIndex / 2) * 14;
+							},
 							padding: 0,
 							formatter: function(value) {
 								if (value === null || value === undefined) return null;

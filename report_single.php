@@ -44,8 +44,8 @@ $fleet_avg_keys = [
 	'FL_PSI_Avg','FR_PSI_Avg','RL_PSI_Avg','RR_PSI_Avg',
 	// Fuel
 	'FuelConsumptionL_Change','NVRAM_TotalFuelConsumption_End',
-	// Performance — LapTime_End = actual per-lap time; BestLapTime_End = running best
-	'VehicleSpeedVSOSig_Max','VehicleSpeedVSOSig_Min','LapTime_End','BestLapTime_End',
+	// Performance — LapTimeSeconds_End = actual per-lap time; BestLapTime_End = running best
+	'VehicleSpeedVSOSig_Max','VehicleSpeedVSOSig_Min','LapTimeSeconds_End','BestLapTime_End',
 	// Engine
 	'EngineWaterTemp_Avg','EngineOilTemperature_Avg','IntkAirTempMnfld_SX_Avg','IntkAirTempMnfld_DX_Avg',
 ];
@@ -81,13 +81,13 @@ foreach ($laps as $i => $lap) {
 	$ms = $lap['VehicleSpeedVSOSig_Min'] ?? null;
 	if ($ms !== null && is_numeric($ms) && (float)$ms == 0.0) $pit_laps[] = $i;
 }
-// Fast lap — first lap index where BestLapTime_End reaches its session minimum
+// Fast lap — the lap with the lowest actual lap time (LapTimeSeconds_End)
 $fast_lap_idx = null;
-$_min_blt = PHP_FLOAT_MAX;
-foreach (lap_series($laps, 'BestLapTime_End') as $i => $t) {
-	if ($t !== null && $t > 30 && $t < $_min_blt) { $_min_blt = $t; $fast_lap_idx = $i; }
+$_min_lt = PHP_FLOAT_MAX;
+foreach (lap_series($laps, 'LapTimeSeconds_End') as $i => $t) {
+	if ($t !== null && $t > 30 && $t < $_min_lt) { $_min_lt = $t; $fast_lap_idx = $i; }
 }
-unset($_min_blt);
+unset($_min_lt);
 
 // ── Warning evaluation ────────────────────────────────────────────────────────
 $section_warnings = [];
@@ -132,14 +132,22 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				});
 			}
 
-			// ── Fast-lap "★ Fast" marker (above Box if same lap, else at bottom) ──
+			// ── Fast-lap: full-height dashed green line + label at top of chart ──
 			if (md.fastLap !== null && md.fastLap >= 0) {
-				const isPit  = md.pitLaps && md.pitLaps.indexOf(md.fastLap) >= 0;
-				ctx.font         = 'bold 9px Helvetica,Arial,sans-serif';
+				const fx = xScale.getPixelForIndex(md.fastLap);
+				ctx.strokeStyle = 'rgba(62,207,114,0.55)';
+				ctx.lineWidth   = 1.5;
+				ctx.setLineDash([5, 4]);
+				ctx.beginPath();
+				ctx.moveTo(fx, ca.top);
+				ctx.lineTo(fx, ca.bottom);
+				ctx.stroke();
+				ctx.setLineDash([]);
 				ctx.fillStyle    = '#3ecf72';
+				ctx.font         = 'bold 10px Helvetica,Arial,sans-serif';
 				ctx.textAlign    = 'center';
-				ctx.textBaseline = 'bottom';
-				ctx.fillText('\u2605 Fast', xScale.getPixelForIndex(md.fastLap), ca.bottom - (isPit ? 20 : 2));
+				ctx.textBaseline = 'top';
+				ctx.fillText('\u2605 Fast', fx, ca.top + 4);
 			}
 
 			// ── Run-group bracket + label below x-axis ─────────────────────
@@ -485,10 +493,10 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				</div>
 			</div>
 			<?php
-			// LapTime_End = actual per-lap time; BestLapTime_End = running best (stepped line)
+			// LapTimeSeconds_End = actual per-lap time; BestLapTime_End = running best (stepped line)
 			$ds = [
-				chart_dataset('Lap time (s)',       '#4a9eff', lap_series($laps, 'LapTime_End')),
-				chart_dataset('Fleet avg lap time', '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'LapTime_End'), true),
+				chart_dataset('Lap time (s)',       '#4a9eff', lap_series($laps, 'LapTimeSeconds_End')),
+				chart_dataset('Fleet avg lap time', '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'LapTimeSeconds_End'), true),
 				chart_dataset('Best lap (running)', '#f07820', lap_series($laps, 'BestLapTime_End'),
 					false, ['stepped' => 'after', 'datalabels' => ['display' => false]]),
 			];

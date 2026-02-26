@@ -8,3 +8,6 @@ exports/*
 
 # Server deployment config
 .cpanel.yml
+
+# Local credentials — never commit
+config.php

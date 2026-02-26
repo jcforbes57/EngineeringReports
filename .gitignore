@@ -1,12 +1,10 @@
 # Uploaded CSV files
-mg1/uploads/*
-!mg1/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
 
 # Generated PDF exports
-mg1/exports/*
-!mg1/exports/.gitkeep
+exports/*
+!exports/.gitkeep
 
-/uploads/*
-/exports/*
-db.php
+# Server deployment config
 .cpanel.yml

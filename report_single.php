@@ -26,8 +26,16 @@ if (empty($laps)) {
 	die('No lap data for this session.');
 }
 
-// Build lap labels
-$lap_labels = array_column($laps, 'lap_number');
+// Build lap labels for display and composite keys for fleet_avgs lookup.
+// When there are multiple runs show "R1 L1", "R1 L2", etc.; otherwise just "1","2"…
+$max_run    = max(array_column($laps, 'run_number'));
+$lap_labels = array_map(function ($l) use ($max_run) {
+	return $max_run > 1
+		? 'R' . $l['run_number'] . ' L' . $l['lap_number']
+		: (string)$l['lap_number'];
+}, $laps);
+// Composite keys used to look up fleet averages (always "run-lap" format)
+$lap_keys = array_map(fn($l) => $l['run_number'] . '-' . $l['lap_number'], $laps);
 
 // Fleet sessions for the same session_name + date (to overlay averages)
 $fleet = get_fleet_sessions($session['session_name'], $session['session_date']);
@@ -50,9 +58,9 @@ $fleet_avgs = compute_fleet_averages($fleet_ids, $fleet_avg_keys);
 function lap_series(array $laps, string $key): array {
 	return array_map(fn($l) => isset($l[$key]) && is_numeric($l[$key]) ? (float)$l[$key] : null, $laps);
 }
-// Helper: extract fleet avg series aligned to lap labels
-function fleet_series(array $fleet_avgs, array $lap_labels, string $key): array {
-	return array_map(fn($lap) => $fleet_avgs[$lap][$key] ?? null, $lap_labels);
+// Helper: extract fleet avg series aligned to lap composite keys
+function fleet_series(array $fleet_avgs, array $lap_keys, string $key): array {
+	return array_map(fn($lk) => $fleet_avgs[$lk][$key] ?? null, $lap_keys);
 }
 
 // ── Warning evaluation ────────────────────────────────────────────────────────
@@ -187,7 +195,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		if (empty($warnings)) return '';
 		$html = '<div class="warnings-block">';
 		foreach ($warnings as $w) {
-			$detail = 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
+			$prefix = (isset($w['run']) && $w['run'] > 1) ? 'Run ' . $w['run'] . ' ' : '';
+		$detail = $prefix . 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
 			$html .= '<div class="warning-item">'
 				. '<span class="warn-icon">&#9432;</span>'
 				. '<span class="warn-msg">' . htmlspecialchars($w['rule']['message']) . '</span>'
@@ -225,7 +234,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$ds[] = chart_dataset($corner . ' Temp (°C)', $tc[$corner],
 					lap_series($laps, $key));
 				$ds[] = chart_dataset($corner . ' Avg Fleet', $tc[$corner],
-					fleet_series($fleet_avgs, $lap_labels, $key), true);
+					fleet_series($fleet_avgs, $lap_keys, $key), true);
 			}
 			render_chart('ch_tire_temp', $ds, '°C');
 			?>
@@ -243,7 +252,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$ds[] = chart_dataset($corner . ' PSI', $tc[$corner],
 					lap_series($laps, $key));
 				$ds[] = chart_dataset($corner . ' PSI Fleet', $tc[$corner],
-					fleet_series($fleet_avgs, $lap_labels, $key), true);
+					fleet_series($fleet_avgs, $lap_keys, $key), true);
 			}
 			render_chart('ch_tire_psi', $ds, 'PSI');
 			?>
@@ -266,7 +275,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Fuel / lap (L)', '#3ecf72', lap_series($laps, 'FuelConsumptionL_Change')),
-				chart_dataset('Fleet avg', '#3ecf72', fleet_series($fleet_avgs, $lap_labels, 'FuelConsumptionL_Change'), true),
+				chart_dataset('Fleet avg', '#3ecf72', fleet_series($fleet_avgs, $lap_keys, 'FuelConsumptionL_Change'), true),
 			];
 			render_chart('ch_fuel_lap', $ds, 'L');
 			?>
@@ -279,7 +288,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Total fuel used (L)', '#f5c518', lap_series($laps, 'NVRAM_TotalFuelConsumption_End')),
-				chart_dataset('Fleet avg', '#f5c518', fleet_series($fleet_avgs, $lap_labels, 'NVRAM_TotalFuelConsumption_End'), true),
+				chart_dataset('Fleet avg', '#f5c518', fleet_series($fleet_avgs, $lap_keys, 'NVRAM_TotalFuelConsumption_End'), true),
 			];
 			render_chart('ch_fuel_total', $ds, 'L');
 			?>
@@ -301,9 +310,9 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Max speed (km/h)', '#4a9eff', lap_series($laps, 'VehicleSpeedVSOSig_Max')),
-				chart_dataset('Fleet max speed', '#4a9eff', fleet_series($fleet_avgs, $lap_labels, 'VehicleSpeedVSOSig_Max'), true),
+				chart_dataset('Fleet max speed', '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'VehicleSpeedVSOSig_Max'), true),
 				chart_dataset('Min speed (km/h)', '#a880f0', lap_series($laps, 'VehicleSpeedVSOSig_Min')),
-				chart_dataset('Fleet min speed', '#a880f0', fleet_series($fleet_avgs, $lap_labels, 'VehicleSpeedVSOSig_Min'), true),
+				chart_dataset('Fleet min speed', '#a880f0', fleet_series($fleet_avgs, $lap_keys, 'VehicleSpeedVSOSig_Min'), true),
 			];
 			render_chart('ch_speed', $ds, 'km/h');
 			?>
@@ -316,7 +325,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Best lap time (s)', '#f07820', lap_series($laps, 'BestLapTime_Min')),
-				chart_dataset('Fleet best lap', '#f07820', fleet_series($fleet_avgs, $lap_labels, 'BestLapTime_Min'), true),
+				chart_dataset('Fleet best lap', '#f07820', fleet_series($fleet_avgs, $lap_keys, 'BestLapTime_Min'), true),
 			];
 			render_chart('ch_laptime', $ds, 's');
 			?>
@@ -338,9 +347,9 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Water temp (°C)', '#d42020', lap_series($laps, 'EngineWaterTemp_Avg')),
-				chart_dataset('Fleet avg', '#d42020', fleet_series($fleet_avgs, $lap_labels, 'EngineWaterTemp_Avg'), true),
+				chart_dataset('Fleet avg', '#d42020', fleet_series($fleet_avgs, $lap_keys, 'EngineWaterTemp_Avg'), true),
 				chart_dataset('Oil temp (°C)', '#f07820', lap_series($laps, 'EngineOilTemperature_Avg')),
-				chart_dataset('Fleet avg', '#f07820', fleet_series($fleet_avgs, $lap_labels, 'EngineOilTemperature_Avg'), true),
+				chart_dataset('Fleet avg', '#f07820', fleet_series($fleet_avgs, $lap_keys, 'EngineOilTemperature_Avg'), true),
 			];
 			render_chart('ch_eng_water', $ds, '°C');
 			?>
@@ -353,9 +362,9 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			<?php
 			$ds = [
 				chart_dataset('Intake air SX (°C)', '#22d4e0', lap_series($laps, 'IntkAirTempMnfld_SX_Avg')),
-				chart_dataset('Fleet avg', '#22d4e0', fleet_series($fleet_avgs, $lap_labels, 'IntkAirTempMnfld_SX_Avg'), true),
+				chart_dataset('Fleet avg', '#22d4e0', fleet_series($fleet_avgs, $lap_keys, 'IntkAirTempMnfld_SX_Avg'), true),
 				chart_dataset('Intake air DX (°C)', '#3ecf72', lap_series($laps, 'IntkAirTempMnfld_DX_Avg')),
-				chart_dataset('Fleet avg', '#3ecf72', fleet_series($fleet_avgs, $lap_labels, 'IntkAirTempMnfld_DX_Avg'), true),
+				chart_dataset('Fleet avg', '#3ecf72', fleet_series($fleet_avgs, $lap_keys, 'IntkAirTempMnfld_DX_Avg'), true),
 			];
 			render_chart('ch_intake_temp', $ds, '°C');
 			?>

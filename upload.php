@@ -94,16 +94,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 					// ── Insert laps ───────────────────────────────────────────
 					$lap_stmt = $db->prepare(
-						"INSERT INTO laps (session_id, lap_number, data) VALUES (?, ?, ?)"
+						"INSERT INTO laps (session_id, run_number, lap_number, data) VALUES (?, ?, ?, ?)"
 					);
 					$lap_col   = $parsed['lap_col'];
 					$lap_count = 0;
 
+					// Build a normalised run map from Run_Info if present.
+					// Raw WinTax run numbers (e.g. 300, 301) are mapped to 1-based
+					// integers so run 1 = first run seen in this upload, etc.
+					$run_col = in_array('Run_Info', $parsed['columns']) ? 'Run_Info' : null;
+					$run_map = [];
+					if ($run_col !== null) {
+						$seq = 0;
+						foreach ($parsed['laps'] as $lap_data) {
+							$raw = (string)($lap_data[$run_col] ?? '');
+							if ($raw !== '' && !isset($run_map[$raw])) {
+								$run_map[$raw] = ++$seq;
+							}
+						}
+					}
+
 					$db->beginTransaction();
+					$prev_lap_num = PHP_INT_MAX;
+					$fallback_run = 1;
 					foreach ($parsed['laps'] as $idx => $lap_data) {
 						$lap_num = resolve_lap_number($lap_data, $lap_col, $idx);
+
+						if ($run_col !== null) {
+							$raw     = (string)($lap_data[$run_col] ?? '');
+							$run_num = $run_map[$raw] ?? 1;
+						} else {
+							// Fallback: detect counter reset by lap number decreasing
+							if ($idx > 0 && $lap_num < $prev_lap_num) {
+								$fallback_run++;
+							}
+							$run_num = $fallback_run;
+						}
+						$prev_lap_num = $lap_num;
+
 						$lap_stmt->execute([
 							$session_id,
+							$run_num,
 							$lap_num,
 							json_encode($lap_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 						]);

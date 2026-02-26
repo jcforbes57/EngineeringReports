@@ -51,13 +51,16 @@ function get_db(): PDO
 function get_laps(int $session_id): array
 {
 	$db   = get_db();
-	$stmt = $db->prepare('SELECT lap_number, data FROM laps WHERE session_id = ? ORDER BY lap_number ASC');
+	$stmt = $db->prepare(
+		'SELECT run_number, lap_number, data FROM laps WHERE session_id = ? ORDER BY run_number ASC, lap_number ASC'
+	);
 	$stmt->execute([$session_id]);
 	$rows = [];
 	foreach ($stmt->fetchAll() as $row) {
-		$data         = json_decode($row['data'], true) ?? [];
+		$data               = json_decode($row['data'], true) ?? [];
+		$data['run_number'] = (int)$row['run_number'];
 		$data['lap_number'] = (int)$row['lap_number'];
-		$rows[]       = $data;
+		$rows[]             = $data;
 	}
 	return $rows;
 }
@@ -127,28 +130,28 @@ function compute_fleet_averages(array $session_ids, array $channel_keys): array
 	// Pull all laps for all sessions in this fleet
 	$placeholders = implode(',', array_fill(0, count($session_ids), '?'));
 	$stmt = $db->prepare(
-		"SELECT lap_number, data FROM laps WHERE session_id IN ($placeholders) ORDER BY lap_number ASC"
+		"SELECT run_number, lap_number, data FROM laps WHERE session_id IN ($placeholders) ORDER BY run_number ASC, lap_number ASC"
 	);
 	$stmt->execute($session_ids);
 
-	// Accumulate sums per lap per channel
-	$sums   = [];  // [lap => [channel => [sum, count]]]
+	// Accumulate sums per (run, lap) composite key per channel
+	$sums   = [];  // ['{run}-{lap}' => [channel => [sum, count]]]
 	foreach ($stmt->fetchAll() as $row) {
-		$lap  = (int)$row['lap_number'];
+		$lk   = (int)$row['run_number'] . '-' . (int)$row['lap_number'];
 		$data = json_decode($row['data'], true) ?? [];
 		foreach ($channel_keys as $key) {
 			if (isset($data[$key]) && is_numeric($data[$key])) {
-				$sums[$lap][$key][0] = ($sums[$lap][$key][0] ?? 0) + (float)$data[$key];
-				$sums[$lap][$key][1] = ($sums[$lap][$key][1] ?? 0) + 1;
+				$sums[$lk][$key][0] = ($sums[$lk][$key][0] ?? 0) + (float)$data[$key];
+				$sums[$lk][$key][1] = ($sums[$lk][$key][1] ?? 0) + 1;
 			}
 		}
 	}
 
 	// Convert to averages
 	$avgs = [];
-	foreach ($sums as $lap => $channels) {
+	foreach ($sums as $lk => $channels) {
 		foreach ($channels as $key => [$sum, $count]) {
-			$avgs[$lap][$key] = $count > 0 ? $sum / $count : null;
+			$avgs[$lk][$key] = $count > 0 ? $sum / $count : null;
 		}
 	}
 	return $avgs;
@@ -162,17 +165,23 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = []): a
 {
 	$triggered = [];
 
+	// laps array is sorted by run_number, lap_number
+	$first_lap = !empty($laps) ? $laps[0]                   : [];
+	$last_lap  = !empty($laps) ? $laps[count($laps) - 1]    : [];
+
 	foreach ($rules as $rule) {
 		$key    = $rule['channel'] . '_' . $rule['stat'];
 		$op     = $rule['operator'];
 		$filter = $rule['lap_filter'];
 
 		foreach ($laps as $lap) {
+			$run_num = $lap['run_number'] ?? 1;
 			$lap_num = $lap['lap_number'];
+			$lk      = $run_num . '-' . $lap_num;
 
-			// Apply lap filter
-			if ($filter === 'first' && $lap_num !== min(array_column($laps, 'lap_number'))) continue;
-			if ($filter === 'last'  && $lap_num !== max(array_column($laps, 'lap_number'))) continue;
+			// Apply lap filter (first/last of the whole session)
+			if ($filter === 'first' && ($run_num !== ($first_lap['run_number'] ?? 1) || $lap_num !== ($first_lap['lap_number'] ?? 1))) continue;
+			if ($filter === 'last'  && ($run_num !== ($last_lap['run_number']  ?? 1) || $lap_num !== ($last_lap['lap_number']  ?? 1))) continue;
 
 			if (!array_key_exists($key, $lap) || $lap[$key] === null) continue;
 			$actual = (float)$lap[$key];
@@ -182,8 +191,8 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = []): a
 				$threshold = (float)$rule['threshold'];
 			} elseif ($rule['compare_to'] === 'fleet_avg') {
 				$target = $rule['compare_target'] ?? $key;
-				if (!isset($fleet_avgs[$lap_num][$target])) continue;
-				$threshold = (float)$fleet_avgs[$lap_num][$target] + (float)$rule['threshold'];
+				if (!isset($fleet_avgs[$lk][$target])) continue;
+				$threshold = (float)$fleet_avgs[$lk][$target] + (float)$rule['threshold'];
 			} else {
 				continue; // other compare types handled by reports
 			}
@@ -201,6 +210,7 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = []): a
 			if ($hit) {
 				$triggered[] = [
 					'rule'   => $rule,
+					'run'    => $run_num,
 					'lap'    => $lap_num,
 					'actual' => $actual,
 				];

@@ -25,15 +25,17 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 -- ─── laps ────────────────────────────────────────────────────────────────────
 -- One row per lap. All telemetry stored as JSON keyed ChannelName_StatType.
+-- run_number is 1-based within the session (normalised from WinTax Run_Info).
 CREATE TABLE IF NOT EXISTS laps (
-	id         INT UNSIGNED   AUTO_INCREMENT PRIMARY KEY,
-	session_id INT UNSIGNED   NOT NULL,
-	lap_number SMALLINT UNSIGNED NOT NULL,
+	id         INT UNSIGNED        AUTO_INCREMENT PRIMARY KEY,
+	session_id INT UNSIGNED        NOT NULL,
+	run_number TINYINT UNSIGNED    NOT NULL DEFAULT 1,
+	lap_number SMALLINT UNSIGNED   NOT NULL,
 	data       JSON,
-	created_at TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
+	created_at TIMESTAMP           DEFAULT CURRENT_TIMESTAMP,
 
 	FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-	UNIQUE KEY uq_lap    (session_id, lap_number),
+	UNIQUE KEY uq_lap    (session_id, run_number, lap_number),
 	KEY        idx_sess  (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

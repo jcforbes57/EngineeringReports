@@ -2,16 +2,16 @@
 // ─── MG1 Engineering Report System — db.php ───────────────────────────────
 // Database connection and shared configuration.
 
-define('MG1_VERSION', 'b1.000.01');
+define('MG1_VERSION', 'b1.000.02');
 
-// ── Database credentials ─────────────────────────────────────────────────────
-// Override these via environment variables or edit directly for local installs.
-define('DB_HOST', getenv('MG1_DB_HOST') ?: 'localhost');
-
-define('DB_NAME', getenv('MG1_DB_NAME') ?: 'jcforbes_mg1reports');
-define('DB_USER', getenv('MG1_DB_USER') ?: 'mg1reports');
-define('DB_PASS', getenv('MG1_DB_PASS') ?: 'Ferrari2026!');
-
+// ── Credentials — loaded from config.php ─────────────────────────────────────
+$_cfg = __DIR__ . '/config.php';
+if (!file_exists($_cfg)) {
+	http_response_code(500);
+	die('<pre>config.php not found. Copy config.sample.php to config.php and fill in your database credentials.</pre>');
+}
+require_once $_cfg;
+unset($_cfg);
 
 // ── Directory paths ───────────────────────────────────────────────────────────
 define('MG1_ROOT',    __DIR__);
@@ -28,11 +28,16 @@ function get_db(): PDO
 			DB_HOST,
 			DB_NAME
 		);
-		$pdo = new PDO($dsn, DB_USER, DB_PASS, [
-			PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-			PDO::ATTR_EMULATE_PREPARES   => false,
-		]);
+		try {
+			$pdo = new PDO($dsn, DB_USER, DB_PASS, [
+				PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+				PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+				PDO::ATTR_EMULATE_PREPARES   => false,
+			]);
+		} catch (\PDOException $e) {
+			http_response_code(500);
+			die('<pre>Database connection failed: ' . htmlspecialchars($e->getMessage()) . "\n\nCheck DB_HOST, DB_NAME, DB_USER, DB_PASS in config.php</pre>");
+		}
 	}
 	return $pdo;
 }

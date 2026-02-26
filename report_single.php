@@ -27,13 +27,10 @@ if (empty($laps)) {
 }
 
 // Build lap labels for display and composite keys for fleet_avgs lookup.
-// When there are multiple runs show "R1 L1", "R1 L2", etc.; otherwise just "1","2"…
+// Labels are sequential integers (1, 2, 3…); run boundaries are drawn below
+// the x-axis by the motorsport annotation plugin.
 $max_run    = max(array_column($laps, 'run_number'));
-$lap_labels = array_map(function ($l) use ($max_run) {
-	return $max_run > 1
-		? 'R' . $l['run_number'] . ' L' . $l['lap_number']
-		: (string)$l['lap_number'];
-}, $laps);
+$lap_labels = range(1, count($laps));
 // Composite keys used to look up fleet averages (always "run-lap" format)
 $lap_keys = array_map(fn($l) => $l['run_number'] . '-' . $l['lap_number'], $laps);
 
@@ -47,8 +44,8 @@ $fleet_avg_keys = [
 	'FL_PSI_Avg','FR_PSI_Avg','RL_PSI_Avg','RR_PSI_Avg',
 	// Fuel
 	'FuelConsumptionL_Change','NVRAM_TotalFuelConsumption_End',
-	// Performance
-	'VehicleSpeedVSOSig_Max','VehicleSpeedVSOSig_Min','BestLapTime_Min',
+	// Performance — LapTime_End = actual per-lap time; BestLapTime_End = running best
+	'VehicleSpeedVSOSig_Max','VehicleSpeedVSOSig_Min','LapTime_End','BestLapTime_End',
 	// Engine
 	'EngineWaterTemp_Avg','EngineOilTemperature_Avg','IntkAirTempMnfld_SX_Avg','IntkAirTempMnfld_DX_Avg',
 ];
@@ -62,6 +59,35 @@ function lap_series(array $laps, string $key): array {
 function fleet_series(array $fleet_avgs, array $lap_keys, string $key): array {
 	return array_map(fn($lk) => $fleet_avgs[$lk][$key] ?? null, $lap_keys);
 }
+
+// ── Annotation data: run-group spans, pit laps, fast lap ──────────────────────
+// Run groups — only meaningful when there are multiple runs in the session
+$run_groups = [];
+if ($max_run > 1) {
+	$cur_run = null; $grp_start = 0;
+	foreach ($laps as $i => $lap) {
+		if ($lap['run_number'] !== $cur_run) {
+			if ($cur_run !== null)
+				$run_groups[] = ['label' => 'Run ' . $cur_run, 'start' => $grp_start, 'end' => $i - 1];
+			$cur_run   = $lap['run_number'];
+			$grp_start = $i;
+		}
+	}
+	$run_groups[] = ['label' => 'Run ' . $cur_run, 'start' => $grp_start, 'end' => count($laps) - 1];
+}
+// Pit laps — any lap where minimum vehicle speed reached 0 kph (car stopped)
+$pit_laps = [];
+foreach ($laps as $i => $lap) {
+	$ms = $lap['VehicleSpeedVSOSig_Min'] ?? null;
+	if ($ms !== null && is_numeric($ms) && (float)$ms == 0.0) $pit_laps[] = $i;
+}
+// Fast lap — first lap index where BestLapTime_End reaches its session minimum
+$fast_lap_idx = null;
+$_min_blt = PHP_FLOAT_MAX;
+foreach (lap_series($laps, 'BestLapTime_End') as $i => $t) {
+	if ($t !== null && $t > 30 && $t < $_min_blt) { $_min_blt = $t; $fast_lap_idx = $i; }
+}
+unset($_min_blt);
 
 // ── Warning evaluation ────────────────────────────────────────────────────────
 $section_warnings = [];
@@ -79,7 +105,69 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<link rel="stylesheet" href="mg1.css">
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 	<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
-	<script>Chart.register(ChartDataLabels);</script>
+	<script>
+	Chart.register(ChartDataLabels);
+
+	// Motorsport annotations plugin — draws per-chart annotations inside
+	// the plot area (Box / Fast Lap) and run-group brackets below the x-axis.
+	const motorsportPlugin = {
+		id: 'motorsport',
+		afterDraw(chart) {
+			const md = chart.options.motorsportData;
+			if (!md) return;
+			const ctx    = chart.ctx;
+			const xScale = chart.scales.x;
+			if (!xScale) return;
+			const ca = chart.chartArea;
+			ctx.save();
+
+			// ── Pit-lap "Box" marker (bottom of chart area, red) ──────────
+			if (md.pitLaps && md.pitLaps.length) {
+				ctx.font         = 'bold 9px Helvetica,Arial,sans-serif';
+				ctx.fillStyle    = '#e05050';
+				ctx.textAlign    = 'center';
+				ctx.textBaseline = 'bottom';
+				md.pitLaps.forEach(function(i) {
+					ctx.fillText('Box', xScale.getPixelForIndex(i), ca.bottom - 2);
+				});
+			}
+
+			// ── Fast-lap "★ Fast" marker (above Box if same lap, else at bottom) ──
+			if (md.fastLap !== null && md.fastLap >= 0) {
+				const isPit  = md.pitLaps && md.pitLaps.indexOf(md.fastLap) >= 0;
+				ctx.font         = 'bold 9px Helvetica,Arial,sans-serif';
+				ctx.fillStyle    = '#3ecf72';
+				ctx.textAlign    = 'center';
+				ctx.textBaseline = 'bottom';
+				ctx.fillText('\u2605 Fast', xScale.getPixelForIndex(md.fastLap), ca.bottom - (isPit ? 20 : 2));
+			}
+
+			// ── Run-group bracket + label below x-axis ─────────────────────
+			if (md.runGroups && md.runGroups.length > 1) {
+				const yLine = xScale.bottom + 3;
+				const yText = xScale.bottom + 18;
+				ctx.lineWidth    = 1;
+				ctx.textAlign    = 'center';
+				ctx.textBaseline = 'top';
+				ctx.font         = '9px Helvetica,Arial,sans-serif';
+				md.runGroups.forEach(function(g) {
+					const x1 = xScale.getPixelForIndex(g.start) + 2;
+					const x2 = xScale.getPixelForIndex(g.end)   - 2;
+					ctx.strokeStyle = '#50505c';
+					ctx.beginPath();
+					ctx.moveTo(x1, yLine + 5); ctx.lineTo(x1, yLine);
+					ctx.lineTo(x2, yLine);     ctx.lineTo(x2, yLine + 5);
+					ctx.stroke();
+					ctx.fillStyle = '#7a7a88';
+					ctx.fillText(g.label, (x1 + x2) / 2, yText);
+				});
+			}
+
+			ctx.restore();
+		}
+	};
+	Chart.register(motorsportPlugin);
+	</script>
 </head>
 <body>
 
@@ -156,6 +244,10 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	//   'y' is merged into the default left axis; any other key adds an extra axis.
 	// $int_labels: when true the data-label formatter always uses toFixed(0) (integer values).
 	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = [], bool $int_labels = false): void {
+		global $run_groups;
+		// Reserve space below x-axis for run-group brackets when there are multiple runs
+		$bottom_pad = (!empty($run_groups) && count($run_groups) > 1) ? 28 : 0;
+
 		$ds_json = json_encode($datasets, JSON_UNESCAPED_UNICODE);
 		$formatter_js = $int_labels
 			? 'function(v){if(v===null||v===undefined)return null;var n=parseFloat(v);return isNaN(n)?null:n.toFixed(0);}'
@@ -192,6 +284,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				options: {
 					responsive: true,
 					maintainAspectRatio: false,
+					layout: { padding: { bottom: {$bottom_pad} } },
+					motorsportData: motorsportGlobal,
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
 						datalabels: {
@@ -246,7 +340,13 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	$tc = ['FL' => '#4a9eff', 'FR' => '#d42020', 'RL' => '#22d4e0', 'RR' => '#f07820'];
 	?>
 
-	<script>const labelsGlobal = <?= $lap_labels_json ?>;</script>
+	<script>
+	const labelsGlobal    = <?= $lap_labels_json ?>;
+	const motorsportGlobal = <?= json_encode(
+		['runGroups' => $run_groups, 'pitLaps' => $pit_laps, 'fastLap' => $fast_lap_idx],
+		JSON_UNESCAPED_UNICODE
+	) ?>;
+	</script>
 
 	<!-- ═══════════════════════════════════════════════════════════════════════
 	     SECTION 1 — TIRES
@@ -385,9 +485,12 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				</div>
 			</div>
 			<?php
+			// LapTime_End = actual per-lap time; BestLapTime_End = running best (stepped line)
 			$ds = [
-				chart_dataset('Best lap time (s)', '#f07820', lap_series($laps, 'BestLapTime_Min')),
-				chart_dataset('Fleet best lap', '#f07820', fleet_series($fleet_avgs, $lap_keys, 'BestLapTime_Min'), true),
+				chart_dataset('Lap time (s)',       '#4a9eff', lap_series($laps, 'LapTime_End')),
+				chart_dataset('Fleet avg lap time', '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'LapTime_End'), true),
+				chart_dataset('Best lap (running)', '#f07820', lap_series($laps, 'BestLapTime_End'),
+					false, ['stepped' => 'after', 'datalabels' => ['display' => false]]),
 			];
 			render_chart('ch_laptime', $ds, 's');
 			?>
@@ -438,21 +541,40 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	     ═══════════════════════════════════════════════════════════════════════ -->
 	<section class="chart-section">
 		<h2>Driver Settings</h2>
+		<?php
+		// Settings are constant within a lap so _Change is always 0 — use _Avg.
+		// Separate charts per setting to prevent overlap and aid comparison.
+		$settings_scale = ['y' => ['min' => 0, 'max' => 5, 'ticks' => ['stepSize' => 1]]];
+		?>
 		<div class="chart-col">
+
 			<div class="chart-wrap-full">
-				<div class="chart-canvas-wrap">
-					<canvas id="ch_abs"></canvas>
-				</div>
+				<div class="chart-canvas-wrap"><canvas id="ch_manaabs"></canvas></div>
 			</div>
 			<?php
-			// Use _Avg suffix — settings are constant within a lap so _Change is always 0.
-			$ds = [
-				chart_dataset('ManABS', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Avg')),
-				chart_dataset('Man1',   '#4a9eff', lap_series($laps, 'Man1_4_FBO_Avg')),
-				chart_dataset('Man2',   '#a880f0', lap_series($laps, 'Man2_4_FBO_Avg')),
-			];
-			render_chart('ch_abs', $ds, 'setting', ['y' => ['min' => 0, 'max' => 5, 'ticks' => ['stepSize' => 1]]], true);
+			render_chart('ch_manaabs',
+				[chart_dataset('ManABS', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Avg'))],
+				'setting', $settings_scale, true);
 			?>
+
+			<div class="chart-wrap-full">
+				<div class="chart-canvas-wrap"><canvas id="ch_man1"></canvas></div>
+			</div>
+			<?php
+			render_chart('ch_man1',
+				[chart_dataset('Man1 (TC)', '#4a9eff', lap_series($laps, 'Man1_4_FBO_Avg'))],
+				'setting', $settings_scale, true);
+			?>
+
+			<div class="chart-wrap-full">
+				<div class="chart-canvas-wrap"><canvas id="ch_man2"></canvas></div>
+			</div>
+			<?php
+			render_chart('ch_man2',
+				[chart_dataset('Man2 (TC)', '#a880f0', lap_series($laps, 'Man2_4_FBO_Avg'))],
+				'setting', $settings_scale, true);
+			?>
+
 		</div>
 	</section>
 

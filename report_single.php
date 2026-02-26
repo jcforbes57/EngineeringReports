@@ -191,10 +191,12 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
 						datalabels: {
+							display: 'auto',
 							font: { size: 10, weight: '600' },
 							anchor: 'end',
 							align: 'top',
-							offset: 1,
+							offset: 2,
+							padding: 0,
 							formatter: function(value) {
 								if (value === null || value === undefined) return null;
 								var v = parseFloat(value);
@@ -251,10 +253,10 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		<h2>Tires</h2>
 		<?= warnings_html($section_warnings['tires']) ?>
 
-		<div class="chart-grid">
+		<div class="chart-col">
 
-			<!-- Tire temperatures -->
-			<div class="chart-wrap">
+			<!-- Tire temperatures — full width -->
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_tire_temp"></canvas>
 				</div>
@@ -271,8 +273,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			render_chart('ch_tire_temp', $ds, '°C');
 			?>
 
-			<!-- Tire pressures -->
-			<div class="chart-wrap">
+			<!-- Tire pressures — full width -->
+			<div class="chart-wrap-full">
 				<div class="chart-canvas-wrap">
 					<canvas id="ch_tire_psi"></canvas>
 				</div>
@@ -445,11 +447,11 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 			<?php
 			$ds = [
-				chart_dataset('ABS interventions', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Change')),
-				chart_dataset('Man1 interventions', '#4a9eff', lap_series($laps, 'Man1_4_FBO_Change')),
-				chart_dataset('Man2 interventions', '#a880f0', lap_series($laps, 'Man2_4_FBO_Change')),
+				chart_dataset('ManABS Setting', '#f5c518', lap_series($laps, 'ManABS_4_FBO_Change')),
+				chart_dataset('Man1 Setting',   '#4a9eff', lap_series($laps, 'Man1_4_FBO_Change')),
+				chart_dataset('Man2 Setting',   '#a880f0', lap_series($laps, 'Man2_4_FBO_Change')),
 			];
-			render_chart('ch_abs', $ds, 'count');
+			render_chart('ch_abs', $ds, 'setting', ['y' => ['min' => 0, 'max' => 5]]);
 
 			// ── Odometer + LTC_Max stat tiles ─────────────────────────────────
 			// Show the last-lap End value and session delta (last − first lap).
@@ -457,8 +459,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			$last_lap  = $laps[count($laps) - 1];
 
 			$stat_items = [
-				['label' => 'Odometer',          'key' => 'OdometerKm_End', 'unit' => 'km', 'dp' => 1],
-				['label' => 'ABS Life (LTC_Max)', 'key' => 'LTC_Max',        'unit' => '',   'dp' => 1],
+				['label' => 'Odometer',           'key' => 'Odometer_End',  'unit' => 'km', 'dp' => 1],
+				['label' => 'ABS Life (LTC_Max)',  'key' => 'LTC_Max_End',   'unit' => '',   'dp' => 1],
 			];
 			?>
 

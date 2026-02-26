@@ -668,7 +668,14 @@ main.container {
 	gap:                   16px;
 }
 
-/* Full-width single-chart wrap (used for combined fuel chart) */
+/* Stacked full-width charts (used for tire section) */
+.chart-col {
+	display:        flex;
+	flex-direction: column;
+	gap:            16px;
+}
+
+/* Full-width single-chart wrap (used for combined fuel chart and chart-col children) */
 .chart-wrap-full {
 	background:    var(--surface);
 	border:        1px solid var(--border);

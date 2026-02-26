@@ -155,16 +155,16 @@ $recent_uploads = $db->query(
 // ── Helper ────────────────────────────────────────────────────────────────────
 function upload_err_message(int $code): string
 {
-	return match ($code) {
-		UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload_max_filesize limit',
-		UPLOAD_ERR_FORM_SIZE  => 'File exceeds the form MAX_FILE_SIZE limit',
-		UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded',
-		UPLOAD_ERR_NO_FILE    => 'No file was selected',
-		UPLOAD_ERR_NO_TMP_DIR => 'Server temporary directory is missing',
-		UPLOAD_ERR_CANT_WRITE => 'Server failed to write file to disk',
-		UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload',
-		default               => "Unknown error (code $code)",
-	};
+	switch ($code) {
+		case UPLOAD_ERR_INI_SIZE:   return 'File exceeds server upload_max_filesize limit';
+		case UPLOAD_ERR_FORM_SIZE:  return 'File exceeds the form MAX_FILE_SIZE limit';
+		case UPLOAD_ERR_PARTIAL:    return 'File was only partially uploaded';
+		case UPLOAD_ERR_NO_FILE:    return 'No file was selected';
+		case UPLOAD_ERR_NO_TMP_DIR: return 'Server temporary directory is missing';
+		case UPLOAD_ERR_CANT_WRITE: return 'Server failed to write file to disk';
+		case UPLOAD_ERR_EXTENSION:  return 'A PHP extension blocked the upload';
+		default:                    return "Unknown error (code $code)";
+	}
 }
 ?>
 <!DOCTYPE html>

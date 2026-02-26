@@ -1,11 +1,11 @@
 -- MG1 Engineering Report System
 -- Database schema
 
-CREATE DATABASE IF NOT EXISTS mg1_reports
+CREATE DATABASE IF NOT EXISTS jcforbes_mg1reports
 	CHARACTER SET utf8mb4
 	COLLATE utf8mb4_unicode_ci;
 
-USE mg1_reports;
+USE jcforbes_mg1reports;
 
 -- ─── sessions ────────────────────────────────────────────────────────────────
 -- One row per unique car + session combo.

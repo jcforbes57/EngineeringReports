@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home4/jcforbes/public_html/MG1Report/
+    - /bin/cp -R $CPANEL_BASE_DIR/. $DEPLOYPATH

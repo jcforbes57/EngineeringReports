@@ -78,6 +78,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<title><?= htmlspecialchars($session['car_alias'] . ' · ' . $session['session_name']) ?> — MG1 Reports</title>
 	<link rel="stylesheet" href="mg1.css">
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
 <body>
 
@@ -141,6 +142,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		if ($fleet) {
 			$base['borderDash']      = [4, 4];
 			$base['backgroundColor'] = 'transparent';
+			$base['datalabels']      = ['display' => false];
 		} else {
 			$base['backgroundColor'] = $color . '22';
 			$base['fill']            = false;
@@ -186,6 +188,21 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					maintainAspectRatio: false,
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
+						datalabels: {
+							color: '#c8c8d4',
+							font: { size: 10, weight: '600' },
+							anchor: 'end',
+							align: 'top',
+							offset: 1,
+							formatter: function(value) {
+								if (value === null || value === undefined) return null;
+								var v = parseFloat(value);
+								if (isNaN(v)) return null;
+								if (Math.abs(v) >= 100) return v.toFixed(0);
+								if (Math.abs(v) >= 10)  return v.toFixed(1);
+								return v.toFixed(2);
+							}
+						},
 						legend: {
 							labels: { color: '#7a7a88', font: { size: 11 }, boxWidth: 18 }
 						},
@@ -328,6 +345,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				'order'           => 2,
 				'tension'         => null,
 				'fill'            => null,
+				'datalabels'      => ['display' => false],
 			]),
 		];
 		render_chart('ch_fuel', $ds, '', $fuel_scales);

@@ -128,7 +128,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	// ── Shared chart config ────────────────────────────────────────────────────
 	$lap_labels_json = json_encode($lap_labels, JSON_UNESCAPED_UNICODE);
 
-	function chart_dataset(string $label, string $color, array $data, bool $fleet = false): array {
+	// $extra allows overriding/extending individual dataset properties (e.g. yAxisID, type)
+	function chart_dataset(string $label, string $color, array $data, bool $fleet = false, array $extra = []): array {
 		$base = [
 			'label'       => $label,
 			'data'        => $data,
@@ -138,17 +139,41 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			'tension'     => 0.3,
 		];
 		if ($fleet) {
-			$base['borderDash']       = [4, 4];
-			$base['backgroundColor']  = 'transparent';
+			$base['borderDash']      = [4, 4];
+			$base['backgroundColor'] = 'transparent';
 		} else {
-			$base['backgroundColor']  = $color . '22';
-			$base['fill']             = false;
+			$base['backgroundColor'] = $color . '22';
+			$base['fill']            = false;
 		}
-		return $base;
+		return array_merge($base, $extra);
 	}
 
-	function render_chart(string $id, array $datasets, string $ylabel = ''): void {
+	// $scales_extra: keyed by axis id ('y','y1','y2'…).
+	//   'y' is merged into the default left axis; any other key adds an extra axis.
+	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = []): void {
 		$ds_json = json_encode($datasets, JSON_UNESCAPED_UNICODE);
+
+		$y_cfg = array_merge([
+			'ticks' => ['color' => '#50505c', 'font' => ['size' => 11]],
+			'grid'  => ['color' => '#1c1c21'],
+			'title' => ['display' => strlen($ylabel) > 0, 'text' => $ylabel,
+			             'color' => '#50505c', 'font' => ['size' => 11]],
+		], $scales_extra['y'] ?? []);
+
+		$scales = [
+			'x' => [
+				'ticks' => ['color' => '#50505c', 'font' => ['size' => 11]],
+				'grid'  => ['color' => '#1c1c21'],
+				'title' => ['display' => true, 'text' => 'Lap',
+				             'color' => '#50505c', 'font' => ['size' => 11]],
+			],
+			'y' => $y_cfg,
+		];
+		foreach ($scales_extra as $axis => $cfg) {
+			if ($axis !== 'y') $scales[$axis] = $cfg;
+		}
+		$scales_json = json_encode($scales, JSON_UNESCAPED_UNICODE);
+
 		echo <<<JS
 		<script>
 		(function(){
@@ -172,18 +197,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 							bodyColor: '#7a7a88',
 						}
 					},
-					scales: {
-						x: {
-							ticks: { color: '#50505c', font: { size: 11 } },
-							grid:  { color: '#1c1c21' },
-							title: { display: true, text: 'Lap', color: '#50505c', font: { size: 11 } }
-						},
-						y: {
-							ticks: { color: '#50505c', font: { size: 11 } },
-							grid:  { color: '#1c1c21' },
-							title: { display: ''.length > 0, text: '{$ylabel}', color: '#50505c', font: { size: 11 } }
-						}
-					}
+					scales: {$scales_json}
 				}
 			});
 		}());
@@ -254,7 +268,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$ds[] = chart_dataset($corner . ' PSI Fleet', $tc[$corner],
 					fleet_series($fleet_avgs, $lap_keys, $key), true);
 			}
-			render_chart('ch_tire_psi', $ds, 'PSI');
+			render_chart('ch_tire_psi', $ds, 'PSI', ['y' => ['max' => 35]]);
 			?>
 
 		</div>
@@ -266,33 +280,58 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	<section class="chart-section">
 		<h2>Fuel</h2>
 		<?= warnings_html($section_warnings['fuel']) ?>
-		<div class="chart-grid">
-			<div class="chart-wrap">
-				<div class="chart-canvas-wrap">
-					<canvas id="ch_fuel_lap"></canvas>
-				</div>
-			</div>
-			<?php
-			$ds = [
-				chart_dataset('Fuel / lap (L)', '#3ecf72', lap_series($laps, 'FuelConsumptionL_Change')),
-				chart_dataset('Fleet avg', '#3ecf72', fleet_series($fleet_avgs, $lap_keys, 'FuelConsumptionL_Change'), true),
-			];
-			render_chart('ch_fuel_lap', $ds, 'L');
-			?>
 
-			<div class="chart-wrap">
-				<div class="chart-canvas-wrap">
-					<canvas id="ch_fuel_total"></canvas>
-				</div>
+		<!-- Single combined chart: fuel/lap (left axis) + total fuel (right axis)
+		     + low fuel warning as a binary bar indicator (hidden axis) -->
+		<div class="chart-wrap-full">
+			<div class="chart-canvas-wrap">
+				<canvas id="ch_fuel"></canvas>
 			</div>
-			<?php
-			$ds = [
-				chart_dataset('Total fuel used (L)', '#f5c518', lap_series($laps, 'NVRAM_TotalFuelConsumption_End')),
-				chart_dataset('Fleet avg', '#f5c518', fleet_series($fleet_avgs, $lap_keys, 'NVRAM_TotalFuelConsumption_End'), true),
-			];
-			render_chart('ch_fuel_total', $ds, 'L');
-			?>
 		</div>
+		<?php
+		$fuel_scales = [
+			'y'  => ['title' => ['display' => true, 'text' => 'L / lap',
+			          'color' => '#50505c', 'font' => ['size' => 11]]],
+			'y1' => [
+				'type'     => 'linear',
+				'position' => 'right',
+				'ticks'    => ['color' => '#50505c', 'font' => ['size' => 11]],
+				'grid'     => ['drawOnChartArea' => false],
+				'title'    => ['display' => true, 'text' => 'Total (L)',
+				               'color' => '#50505c', 'font' => ['size' => 11]],
+			],
+			// Hidden axis for the 0/1 low-fuel indicator bars
+			'y2' => [
+				'type'    => 'linear',
+				'display' => false,
+				'min'     => 0,
+				'max'     => 1.4,
+			],
+		];
+		$ds = [
+			chart_dataset('Fuel / lap (L)',      '#3ecf72', lap_series($laps, 'FuelConsumptionL_Change'),
+				false, ['yAxisID' => 'y', 'order' => 1]),
+			chart_dataset('Fleet avg (L/lap)',   '#3ecf72', fleet_series($fleet_avgs, $lap_keys, 'FuelConsumptionL_Change'),
+				true,  ['yAxisID' => 'y', 'order' => 1]),
+			chart_dataset('Total fuel (L)',      '#f5c518', lap_series($laps, 'NVRAM_TotalFuelConsumption_End'),
+				false, ['yAxisID' => 'y1', 'order' => 1]),
+			chart_dataset('Fleet avg total (L)', '#f5c518', fleet_series($fleet_avgs, $lap_keys, 'NVRAM_TotalFuelConsumption_End'),
+				true,  ['yAxisID' => 'y1', 'order' => 1]),
+			// Low fuel warning — binary bar, rendered behind the lines
+			array_merge(chart_dataset('Low fuel warning', '#e03030', lap_series($laps, 'LowFuelFilteredWarningSts_Max')), [
+				'type'            => 'bar',
+				'yAxisID'         => 'y2',
+				'backgroundColor' => 'rgba(224, 48, 48, 0.35)',
+				'borderColor'     => 'rgba(224, 48, 48, 0.6)',
+				'borderWidth'     => 1,
+				'barPercentage'   => 0.95,
+				'order'           => 2,
+				'tension'         => null,
+				'fill'            => null,
+			]),
+		];
+		render_chart('ch_fuel', $ds, '', $fuel_scales);
+		?>
 	</section>
 
 	<!-- ═══════════════════════════════════════════════════════════════════════
@@ -392,18 +431,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			render_chart('ch_abs', $ds, 'count');
 			?>
 
-			<div class="chart-wrap">
-				<div class="chart-canvas-wrap">
-					<canvas id="ch_low_fuel"></canvas>
-				</div>
 			</div>
-			<?php
-			$ds = [
-				chart_dataset('Low fuel warning', '#e03030', lap_series($laps, 'LowFuelFilteredWarningSts_Max')),
-			];
-			render_chart('ch_low_fuel', $ds, 'state');
-			?>
-		</div>
 	</section>
 
 </main>

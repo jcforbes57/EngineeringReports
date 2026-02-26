@@ -88,7 +88,7 @@ a:hover {
 }
 
 .header-inner {
-	max-width:   1400px;
+	max-width:   1700px;
 	margin:      0 auto;
 	height:      100%;
 	padding:     0 24px;
@@ -147,9 +147,9 @@ a:hover {
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */
 main.container {
-	max-width: 1400px;
+	max-width: 1700px;
 	margin:    0 auto;
-	padding:   32px 24px 64px;
+	padding:   32px 32px 64px;
 	flex:      1;
 }
 
@@ -659,13 +659,22 @@ main.container {
 
 .chart-canvas-wrap {
 	position: relative;
-	height:   260px;
+	height:   300px;
 }
 
 .chart-grid {
 	display:               grid;
-	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+	grid-template-columns: repeat(2, 1fr);
 	gap:                   16px;
+}
+
+/* Full-width single-chart wrap (used for combined fuel chart) */
+.chart-wrap-full {
+	background:    var(--surface);
+	border:        1px solid var(--border);
+	border-radius: var(--radius-lg);
+	padding:       16px;
+	position:      relative;
 }
 
 /* ── Site footer ───────────────────────────────────────────────────────────── */
@@ -704,10 +713,14 @@ main.container {
 	.btn,
 	.site-nav { display: none !important; }
 
-	.chart-wrap { break-inside: avoid; }
+	.chart-canvas-wrap { height: 360px; }
+
+	.chart-wrap,
+	.chart-wrap-full { break-inside: avoid; }
+
 	.chart-section { break-inside: avoid; }
 
-	main.container { padding: 0; max-width: 100%; }
+	main.container { padding: 8px 0; max-width: 100%; }
 }
 
 /* ── Utility ───────────────────────────────────────────────────────────────── */

@@ -24,14 +24,35 @@ foreach ($sessions as $s) {
 	$fleet_laps[$s['car_alias']] = get_laps((int)$s['id']);
 }
 
-// Derive a common lap label set (union of all lap numbers)
+// Derive a common label set (union of all run+lap combos across all cars).
+// Keys are "run-lap" composite strings; values are display labels.
 $all_laps_set = [];
 foreach ($fleet_laps as $laps) {
-	foreach ($laps as $l) { $all_laps_set[$l['lap_number']] = true; }
+	foreach ($laps as $l) {
+		$lk = $l['run_number'] . '-' . $l['lap_number'];
+		$all_laps_set[$lk] = true;
+	}
 }
-ksort($all_laps_set);
-$lap_labels = array_keys($all_laps_set);
-$lap_labels_json = json_encode($lap_labels);
+// Sort by run number then lap number
+uksort($all_laps_set, function ($a, $b) {
+	list($ar, $al) = explode('-', $a, 2);
+	list($br, $bl) = explode('-', $b, 2);
+	return $ar !== $br ? (int)$ar - (int)$br : (int)$al - (int)$bl;
+});
+$lap_keys = array_keys($all_laps_set);
+
+// Display labels: show run prefix only when any car has multiple runs
+$max_run_fleet = 1;
+foreach ($fleet_laps as $laps) {
+	if (!empty($laps)) {
+		$max_run_fleet = max($max_run_fleet, max(array_column($laps, 'run_number')));
+	}
+}
+$lap_labels = array_map(function ($lk) use ($max_run_fleet) {
+	list($r, $l) = explode('-', $lk, 2);
+	return $max_run_fleet > 1 ? 'R' . $r . ' L' . $l : $l;
+}, $lap_keys);
+$lap_labels_json = json_encode(array_values($lap_labels));
 
 // Car palette (up to 8 cars — extend if needed)
 $car_colors = ['#4a9eff','#d42020','#3ecf72','#f07820','#a880f0','#22d4e0','#f5c518','#e8e8ec'];
@@ -40,14 +61,17 @@ foreach (array_values($sessions) as $i => $s) {
 	$car_color_map[$s['car_alias']] = $car_colors[$i % count($car_colors)];
 }
 
-function fleet_lap_series(array $laps, string $key, array $lap_labels): array {
+function fleet_lap_series(array $laps, string $key, array $lap_keys): array {
 	$indexed = [];
-	foreach ($laps as $l) { $indexed[$l['lap_number']] = $l; }
-	return array_map(fn($ln) =>
-		isset($indexed[$ln][$key]) && is_numeric($indexed[$ln][$key])
-			? (float)$indexed[$ln][$key]
+	foreach ($laps as $l) {
+		$lk = $l['run_number'] . '-' . $l['lap_number'];
+		$indexed[$lk] = $l;
+	}
+	return array_map(fn($lk) =>
+		isset($indexed[$lk][$key]) && is_numeric($indexed[$lk][$key])
+			? (float)$indexed[$lk][$key]
 			: null,
-		$lap_labels
+		$lap_keys
 	);
 }
 ?>
@@ -139,7 +163,7 @@ function fleet_lap_series(array $laps, string $key, array $lap_labels): array {
 					: $alias;
 				$ds[] = [
 					'label'           => $chan_label,
-					'data'            => fleet_lap_series($laps, $key, $lap_labels),
+					'data'            => fleet_lap_series($laps, $key, $lap_keys),
 					'borderColor'     => $color,
 					'backgroundColor' => $color . '22',
 					'borderWidth'     => 2,

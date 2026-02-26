@@ -7,9 +7,11 @@ define('MG1_VERSION', 'b1.000.01');
 // ── Database credentials ─────────────────────────────────────────────────────
 // Override these via environment variables or edit directly for local installs.
 define('DB_HOST', getenv('MG1_DB_HOST') ?: 'localhost');
+
 define('DB_NAME', getenv('MG1_DB_NAME') ?: 'jcforbes_mg1reports');
-define('DB_USER', getenv('MG1_DB_USER') ?: 'root');
-define('DB_PASS', getenv('MG1_DB_PASS') ?: '');
+define('DB_USER', getenv('MG1_DB_USER') ?: 'mg1reports');
+define('DB_PASS', getenv('MG1_DB_PASS') ?: 'Ferrari2026!');
+
 
 // ── Directory paths ───────────────────────────────────────────────────────────
 define('MG1_ROOT',    __DIR__);

@@ -89,6 +89,21 @@ foreach (lap_series($laps, 'BestLapTime_End') as $i => $t) {
 }
 unset($_min_blt);
 
+// Null out all channel data for pit laps (min speed == 0).
+// They appear as line gaps on all charts and are skipped by warning evaluation.
+// run_number and lap_number are kept so the x-axis label and annotations still work.
+if (!empty($pit_laps)) {
+	$pit_lap_set = array_flip($pit_laps);
+	foreach ($laps as $i => &$lap) {
+		if (isset($pit_lap_set[$i])) {
+			foreach (array_keys($lap) as $k) {
+				if ($k !== 'run_number' && $k !== 'lap_number') $lap[$k] = null;
+			}
+		}
+	}
+	unset($lap);
+}
+
 // ── Warning evaluation ────────────────────────────────────────────────────────
 $section_warnings = [];
 foreach (['tires','fuel','performance','engine','life'] as $sec) {
@@ -113,7 +128,9 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	const motorsportPlugin = {
 		id: 'motorsport',
 		afterDraw(chart) {
-			const md = chart.options.plugins.motorsport;
+			// Read page-level global directly — Chart.js v4's options resolver
+			// deep-merges plugin configs and can mangle array values (runGroups etc.).
+			const md = (typeof motorsportGlobal !== 'undefined') ? motorsportGlobal : null;
 			if (!md) return;
 			const ctx    = chart.ctx;
 			const xScale = chart.scales.x;
@@ -295,7 +312,6 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					layout: { padding: { bottom: {$bottom_pad} } },
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
-						motorsport: motorsportGlobal,
 						datalabels: {
 							display: true,
 							clamp: true,

@@ -81,13 +81,15 @@ foreach ($laps as $i => $lap) {
 	$ms = $lap['VehicleSpeedVSOSig_Min'] ?? null;
 	if ($ms !== null && is_numeric($ms) && (float)$ms == 0.0) $pit_laps[] = $i;
 }
-// Fast lap — lap where BestLapTime_End first reaches its session minimum (driver-managed channel)
+// Fast lap — lap with the minimum actual lap time (LapTimeSeconds_End).
+// BestLapTime_End is driver-managed and unreliable for detection; using the
+// actual per-lap time directly gives an unambiguous smallest-number = fastest result.
 $fast_lap_idx = null;
-$_min_blt = PHP_FLOAT_MAX;
-foreach (lap_series($laps, 'BestLapTime_End') as $i => $t) {
-	if ($t !== null && $t > 30 && $t < $_min_blt) { $_min_blt = $t; $fast_lap_idx = $i; }
+$_min_lt = PHP_FLOAT_MAX;
+foreach (lap_series($laps, 'LapTimeSeconds_End') as $i => $t) {
+	if ($t !== null && $t > 30 && $t < $_min_lt) { $_min_lt = $t; $fast_lap_idx = $i; }
 }
-unset($_min_blt);
+unset($_min_lt);
 
 // Null out all channel data for pit laps (min speed == 0).
 // They appear as line gaps on all charts and are skipped by warning evaluation.
@@ -283,15 +285,20 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	// $scales_extra: keyed by axis id ('y','y1','y2'…).
 	//   'y' is merged into the default left axis; any other key adds an extra axis.
 	// $int_labels: when true the data-label formatter always uses toFixed(0) (integer values).
-	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = [], bool $int_labels = false): void {
+	// $formatter_override: raw JS function string; when non-empty overrides int_labels/default formatter.
+	function render_chart(string $id, array $datasets, string $ylabel = '', array $scales_extra = [], bool $int_labels = false, string $formatter_override = ''): void {
 		global $run_groups;
 		// Reserve space below x-axis for run-group brackets when there are multiple runs
 		$bottom_pad = (!empty($run_groups) && count($run_groups) > 1) ? 28 : 0;
 
 		$ds_json = json_encode($datasets, JSON_UNESCAPED_UNICODE);
-		$formatter_js = $int_labels
-			? 'function(v){if(v===null||v===undefined)return null;var n=parseFloat(v);return isNaN(n)?null:n.toFixed(0);}'
-			: 'function(value){if(value===null||value===undefined)return null;var v=parseFloat(value);if(isNaN(v))return null;if(Math.abs(v)>=100)return v.toFixed(0);if(Math.abs(v)>=10)return v.toFixed(1);return v.toFixed(2);}';
+		if ($formatter_override !== '') {
+			$formatter_js = $formatter_override;
+		} elseif ($int_labels) {
+			$formatter_js = 'function(v){if(v===null||v===undefined)return null;var n=parseFloat(v);return isNaN(n)?null:n.toFixed(0);}';
+		} else {
+			$formatter_js = 'function(value){if(value===null||value===undefined)return null;var v=parseFloat(value);if(isNaN(v))return null;if(Math.abs(v)>=100)return v.toFixed(0);if(Math.abs(v)>=10)return v.toFixed(1);return v.toFixed(2);}';
+		}
 
 		$y_cfg = array_merge([
 			'ticks' => ['color' => '#50505c', 'font' => ['size' => 11]],
@@ -386,26 +393,6 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		JSON_UNESCAPED_UNICODE
 	) ?>;
 	</script>
-
-	<?php
-	// ── Temporary channel diagnostic — remove once Man1/Man2 keys are confirmed ──
-	if (!empty($laps)) {
-		$all_keys = array_keys($laps[0]);
-		$man_keys = array_values(array_filter($all_keys, fn($k) => stripos($k, 'man') !== false));
-		echo '<details style="margin:8px 0 16px;font:11px/1.6 monospace;color:#7a7a88;border:1px solid #2a2a31;border-radius:4px;padding:6px 10px;">';
-		echo '<summary style="cursor:pointer;color:#50505c;">&#x1F50D; Channel diagnostic (temporary)</summary>';
-		echo '<p style="margin:4px 0 0"><strong>Man* keys found in lap data:</strong> ';
-		echo empty($man_keys) ? '<em style="color:#e05050">(none — column names may differ from expectation)</em>' : htmlspecialchars(implode(', ', $man_keys));
-		echo '</p>';
-		echo '<p style="margin:2px 0 0"><strong>motorsportGlobal:</strong> ';
-		echo 'fastLap=' . var_export($fast_lap_idx, true);
-		echo ', pitLaps=[' . implode(',', $pit_laps) . ']';
-		echo ', runGroups=' . count($run_groups) . ' group(s)';
-		if (!empty($run_groups)) echo ' (' . implode(' | ', array_map(fn($g) => $g['label'] . ' laps ' . $g['start'] . '-' . $g['end'], $run_groups)) . ')';
-		echo '</p>';
-		echo '</details>';
-	}
-	?>
 
 	<!-- ═══════════════════════════════════════════════════════════════════════
 	     SECTION 1 — TIRES
@@ -558,12 +545,14 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 
 			// LapTimeSeconds_End = actual per-lap time; BestLapTime_End = running best (stepped line)
 			$ds = [
-				chart_dataset('Lap time (s)',       '#4a9eff', lap_series($laps, 'LapTimeSeconds_End')),
-				chart_dataset('Fleet avg lap time', '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'LapTimeSeconds_End'), true),
-				chart_dataset('Best lap (running)', '#f07820', lap_series($laps, 'BestLapTime_End'),
+				chart_dataset('Lap time',       '#4a9eff', lap_series($laps, 'LapTimeSeconds_End')),
+				chart_dataset('Fleet avg',      '#4a9eff', fleet_series($fleet_avgs, $lap_keys, 'LapTimeSeconds_End'), true),
+				chart_dataset('Best (running)', '#f07820', lap_series($laps, 'BestLapTime_End'),
 					false, ['stepped' => 'after', 'datalabels' => ['display' => false]]),
 			];
-			render_chart('ch_laptime', $ds, 's', $_lt_scale);
+			// mm:ss.xxx formatter — always 3 decimal places on seconds
+			$_laptime_fmt = 'function(value){if(value===null||value===undefined)return null;var v=parseFloat(value);if(isNaN(v)||v<=0)return null;var m=Math.floor(v/60);var s=(v-m*60).toFixed(3);if(parseFloat(s)<10)s=\'0\'+s;return m+\':\'+s;}';
+			render_chart('ch_laptime', $ds, 'min:sec', $_lt_scale, false, $_laptime_fmt);
 			?>
 		</div>
 	</section>
@@ -633,7 +622,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 			<?php
 			render_chart('ch_man1',
-				[chart_dataset('Man1 (TC)', '#4a9eff', lap_series($laps, 'Man1_4_FBO_Avg'))],
+				[chart_dataset('Man1 (TC)', '#4a9eff', lap_series($laps, 'Man1_4_FBO_End'))],
 				'setting', $settings_scale, true);
 			?>
 
@@ -642,7 +631,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 			<?php
 			render_chart('ch_man2',
-				[chart_dataset('Man2 (TC)', '#a880f0', lap_series($laps, 'Man2_4_FBO_Avg'))],
+				[chart_dataset('Man2 (TC)', '#a880f0', lap_series($laps, 'Man2_4_FBO_End'))],
 				'setting', $settings_scale, true);
 			?>
 

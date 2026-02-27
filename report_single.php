@@ -81,13 +81,13 @@ foreach ($laps as $i => $lap) {
 	$ms = $lap['VehicleSpeedVSOSig_Min'] ?? null;
 	if ($ms !== null && is_numeric($ms) && (float)$ms == 0.0) $pit_laps[] = $i;
 }
-// Fast lap — the lap with the lowest actual lap time (LapTimeSeconds_End)
+// Fast lap — lap where BestLapTime_End first reaches its session minimum (driver-managed channel)
 $fast_lap_idx = null;
-$_min_lt = PHP_FLOAT_MAX;
-foreach (lap_series($laps, 'LapTimeSeconds_End') as $i => $t) {
-	if ($t !== null && $t > 30 && $t < $_min_lt) { $_min_lt = $t; $fast_lap_idx = $i; }
+$_min_blt = PHP_FLOAT_MAX;
+foreach (lap_series($laps, 'BestLapTime_End') as $i => $t) {
+	if ($t !== null && $t > 30 && $t < $_min_blt) { $_min_blt = $t; $fast_lap_idx = $i; }
 }
-unset($_min_lt);
+unset($_min_blt);
 
 // ── Warning evaluation ────────────────────────────────────────────────────────
 $section_warnings = [];
@@ -113,7 +113,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	const motorsportPlugin = {
 		id: 'motorsport',
 		afterDraw(chart) {
-			const md = chart.options.motorsportData;
+			const md = chart.options.plugins.motorsport;
 			if (!md) return;
 			const ctx    = chart.ctx;
 			const xScale = chart.scales.x;
@@ -293,9 +293,9 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 					responsive: true,
 					maintainAspectRatio: false,
 					layout: { padding: { bottom: {$bottom_pad} } },
-					motorsportData: motorsportGlobal,
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
+						motorsport: motorsportGlobal,
 						datalabels: {
 							display: true,
 							clamp: true,
@@ -493,6 +493,18 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				</div>
 			</div>
 			<?php
+			// Y-axis: scale to typical laps by capping at 90th-percentile × 1.12.
+			// Out laps and pit laps (outliers) cause the line to exit the top of the chart,
+			// which is intentional — "Box" / run-group annotations explain those laps.
+			$_lt_vals = array_filter(lap_series($laps, 'LapTimeSeconds_End'),
+				fn($v) => $v !== null && $v > 30);
+			$_lt_scale = [];
+			if (count($_lt_vals) >= 3) {
+				$_sorted = array_values($_lt_vals); sort($_sorted);
+				$_p90    = $_sorted[(int)floor(0.90 * (count($_sorted) - 1))];
+				$_lt_scale = ['y' => ['max' => (int)ceil($_p90 * 1.12)]];
+			}
+
 			// LapTimeSeconds_End = actual per-lap time; BestLapTime_End = running best (stepped line)
 			$ds = [
 				chart_dataset('Lap time (s)',       '#4a9eff', lap_series($laps, 'LapTimeSeconds_End')),
@@ -500,7 +512,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				chart_dataset('Best lap (running)', '#f07820', lap_series($laps, 'BestLapTime_End'),
 					false, ['stepped' => 'after', 'datalabels' => ['display' => false]]),
 			];
-			render_chart('ch_laptime', $ds, 's');
+			render_chart('ch_laptime', $ds, 's', $_lt_scale);
 			?>
 		</div>
 	</section>

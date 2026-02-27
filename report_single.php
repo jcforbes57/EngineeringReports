@@ -34,9 +34,11 @@ $lap_labels = range(1, count($laps));
 // Composite keys used to look up fleet averages (always "run-lap" format)
 $lap_keys = array_map(fn($l) => $l['run_number'] . '-' . $l['lap_number'], $laps);
 
-// Fleet sessions for the same session_name + date (to overlay averages)
+// Fleet sessions for the same session_name + date (to overlay averages).
+// Exclude the current session so the fleet avg represents peer cars only.
+// If this is the only car, $fleet_ids is empty and no overlay lines appear.
 $fleet = get_fleet_sessions($session['session_name'], $session['session_date']);
-$fleet_ids = array_column($fleet, 'id');
+$fleet_ids = array_values(array_filter(array_column($fleet, 'id'), fn($id) => $id !== $session_id));
 $fleet_avg_keys = [
 	// Tire temps
 	'FL_WS_TEMPERATURE_Avg','FR_WS_TEMPERATURE_Avg','RL_WS_TEMPERATURE_Avg','RR_WS_TEMPERATURE_Avg',
@@ -411,7 +413,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$detail = $prefix . 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
 			}
 			$html .= '<div class="warning-item">'
-				. '<span class="warn-icon">&#9432;</span>'
+				. '<span class="warn-icon">&#9888;</span>'
 				. '<span class="warn-msg">' . htmlspecialchars($w['rule']['message']) . '</span>'
 				. '<span class="warn-detail">' . htmlspecialchars($detail) . '</span>'
 				. '</div>';
@@ -420,7 +422,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	}
 
 	// Tire colours: FL=blue, FR=red, RL=teal, RR=orange
-	$tc = ['FL' => '#4a9eff', 'FR' => '#d42020', 'RL' => '#22d4e0', 'RR' => '#f07820'];
+	$tc = ['FL' => '#4ab8ff', 'FR' => '#e03c3c', 'RL' => '#22d4e0', 'RR' => '#f07820'];
 	?>
 
 	<script>
@@ -608,8 +610,8 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 			<?php
 			$ds = [
-				chart_dataset('Water temp (°C)', '#d42020', lap_series($laps, 'EngineWaterTemp_Avg')),
-				chart_dataset('Fleet avg', '#d42020', fleet_series($fleet_avgs, $lap_keys, 'EngineWaterTemp_Avg'), true),
+				chart_dataset('Water temp (°C)', '#e03c3c', lap_series($laps, 'EngineWaterTemp_Avg')),
+				chart_dataset('Fleet avg', '#e03c3c', fleet_series($fleet_avgs, $lap_keys, 'EngineWaterTemp_Avg'), true),
 				chart_dataset('Oil temp (°C)', '#f07820', lap_series($laps, 'EngineOilTemperature_Avg')),
 				chart_dataset('Fleet avg', '#f07820', fleet_series($fleet_avgs, $lap_keys, 'EngineOilTemperature_Avg'), true),
 			];

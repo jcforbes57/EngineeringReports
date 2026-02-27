@@ -162,14 +162,22 @@ function compute_fleet_averages(array $session_ids, array $channel_keys): array
  * Returns array of ['rule' => $rule, 'lap' => $lap_number, 'actual' => $value].
  *
  * $fast_lap_idx: 0-based index into $laps of the fastest lap (for 'fast_lap' filter).
+ *
+ * lap_filter modes:
+ *   any                  — every lap is checked independently
+ *   first / last         — only that single lap is checked
+ *   fast_lap             — only the fastest lap is checked
+ *   multiple             — all laps are checked; the rule only fires if 2+ laps hit
+ *   multiple_consecutive — all laps are checked; only runs of 2+ consecutive hits
+ *                          are kept (isolated single-lap hits are suppressed)
  */
 function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = [], ?int $fast_lap_idx = null): array
 {
 	$triggered = [];
 
 	// laps array is sorted by run_number, lap_number
-	$first_lap = !empty($laps) ? $laps[0]                   : [];
-	$last_lap  = !empty($laps) ? $laps[count($laps) - 1]    : [];
+	$first_lap = !empty($laps) ? $laps[0]                : [];
+	$last_lap  = !empty($laps) ? $laps[count($laps) - 1] : [];
 	$fast_lap  = ($fast_lap_idx !== null && isset($laps[$fast_lap_idx])) ? $laps[$fast_lap_idx] : null;
 
 	foreach ($rules as $rule) {
@@ -177,12 +185,16 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = [], ?i
 		$op     = $rule['operator'];
 		$filter = $rule['lap_filter'];
 
-		foreach ($laps as $lap) {
+		// Collect all hits for this rule (with their sequential $laps index so
+		// the consecutive-run detector has something to work with).
+		$rule_hits = [];
+
+		foreach ($laps as $seq_idx => $lap) {
 			$run_num = $lap['run_number'] ?? 1;
 			$lap_num = $lap['lap_number'];
 			$lk      = $run_num . '-' . $lap_num;
 
-			// Apply lap filter
+			// Apply single-lap filters (skip irrelevant laps early)
 			if ($filter === 'first' && ($run_num !== ($first_lap['run_number'] ?? 1) || $lap_num !== ($first_lap['lap_number'] ?? 1))) continue;
 			if ($filter === 'last'  && ($run_num !== ($last_lap['run_number']  ?? 1) || $lap_num !== ($last_lap['lap_number']  ?? 1))) continue;
 			if ($filter === 'fast_lap') {
@@ -201,26 +213,68 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = [], ?i
 				if (!isset($fleet_avgs[$lk][$target])) continue;
 				$threshold = (float)$fleet_avgs[$lk][$target] + (float)$rule['threshold'];
 			} else {
-				continue; // other compare types handled by reports
+				continue; // other compare types not yet implemented
 			}
 
-			switch ($op) {
-				case '>':  $hit = $actual >  $threshold; break;
-				case '<':  $hit = $actual <  $threshold; break;
-				case '>=': $hit = $actual >= $threshold; break;
-				case '<=': $hit = $actual <= $threshold; break;
-				case '=':  $hit = $actual == $threshold; break;
-				case '!=': $hit = $actual != $threshold; break;
-				default:   $hit = false;
-			}
+			$hit = match ($op) {
+				'>'  => $actual >  $threshold,
+				'<'  => $actual <  $threshold,
+				'>=' => $actual >= $threshold,
+				'<=' => $actual <= $threshold,
+				'='  => $actual == $threshold,
+				'!=' => $actual != $threshold,
+				default => false,
+			};
 
 			if ($hit) {
-				$triggered[] = [
+				$rule_hits[] = [
+					'_seq'   => $seq_idx,   // sequential index within $laps — used for consecutive check
 					'rule'   => $rule,
 					'run'    => $run_num,
 					'lap'    => $lap_num,
 					'actual' => $actual,
 				];
+			}
+		}
+
+		if (empty($rule_hits)) continue;
+
+		// Post-filter for multi-lap modes
+		if ($filter === 'multiple') {
+			// Fire only when 2 or more laps triggered
+			if (count($rule_hits) < 2) continue;
+			foreach ($rule_hits as $h) {
+				unset($h['_seq']);
+				$triggered[] = $h;
+			}
+		} elseif ($filter === 'multiple_consecutive') {
+			// Keep only hits that form part of a run of 2+ consecutive laps.
+			// Sort by sequential index (should already be sorted, but be safe).
+			usort($rule_hits, fn($a, $b) => $a['_seq'] <=> $b['_seq']);
+
+			// Walk through building runs of consecutive _seq values
+			$n     = count($rule_hits);
+			$start = 0;
+			while ($start < $n) {
+				$end = $start;
+				while ($end + 1 < $n && $rule_hits[$end + 1]['_seq'] === $rule_hits[$end]['_seq'] + 1) {
+					$end++;
+				}
+				$run_length = $end - $start + 1;
+				if ($run_length >= 2) {
+					for ($j = $start; $j <= $end; $j++) {
+						$h = $rule_hits[$j];
+						unset($h['_seq']);
+						$triggered[] = $h;
+					}
+				}
+				$start = $end + 1;
+			}
+		} else {
+			// any / first / last / fast_lap — emit hits directly
+			foreach ($rule_hits as $h) {
+				unset($h['_seq']);
+				$triggered[] = $h;
 			}
 		}
 	}

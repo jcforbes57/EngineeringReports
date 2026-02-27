@@ -12,36 +12,37 @@
 
 :root {
 	/* Palette */
-	--bg:          #0d0d0f;
-	--surface:     #151518;
-	--surface-2:   #1c1c21;
-	--surface-3:   #242429;
-	--border:      #2a2a31;
-	--border-hi:   #3d3d48;
+	--bg:          #0c0e11;
+	--surface:     #13161a;
+	--surface-2:   #1a1d23;
+	--surface-3:   #21252c;
+	--border:      #272c35;
+	--border-hi:   #363d4a;
 
-	/* Accent — racing red */
-	--accent:      #d42020;
-	--accent-dim:  #8c1515;
-	--accent-glow: rgba(212,32,32,0.18);
+	/* Accent — MG1 brand blue */
+	--accent:      #1599d4;
+	--accent-dim:  #0d6898;
+	--accent-glow: rgba(21,153,212,0.18);
 
 	/* Data colours (chart lines, badges) */
-	--data-blue:   #4a9eff;
+	--data-blue:   #4ab8ff;
 	--data-green:  #3ecf72;
 	--data-yellow: #f5c518;
 	--data-orange: #f07820;
 	--data-purple: #a880f0;
 	--data-cyan:   #22d4e0;
+	--data-red:    #e03c3c;
 
 	/* Text */
-	--text:        #e8e8ec;
-	--text-muted:  #7a7a88;
-	--text-dim:    #50505c;
+	--text:        #e4e8ee;
+	--text-muted:  #7a8394;
+	--text-dim:    #4e5566;
 
 	/* Status */
 	--ok:          #3ecf72;
 	--warn:        #f5c518;
-	--error:       #e03030;
-	--info:        #4a9eff;
+	--error:       #e03c3c;
+	--info:        #4ab8ff;
 
 	/* Sizing */
 	--radius:      6px;
@@ -84,6 +85,7 @@ a:hover {
 	height:     var(--header-h);
 	background: var(--surface);
 	border-bottom: 1px solid var(--border);
+	border-top: 3px solid var(--accent);
 	box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
 
@@ -192,8 +194,8 @@ main.container {
 	border-color: var(--accent);
 }
 .btn-primary:hover {
-	background:   #b81c1c;
-	border-color: #b81c1c;
+	background:   #1180b4;
+	border-color: #1180b4;
 }
 
 .btn-outline {
@@ -494,7 +496,7 @@ details[open] > summary .dash-chevron { transform: rotate(90deg); }
 	font-size:      12px;
 	font-weight:    700;
 	background:     var(--accent-dim);
-	color:          #f0a0a0;
+	color:          #a0d8f0;
 	padding:        2px 8px;
 	border-radius:  4px;
 	white-space:    nowrap;
@@ -641,8 +643,9 @@ details[open] > summary .dash-chevron { transform: rotate(90deg); }
 	font-size:     15px;
 	font-weight:   700;
 	margin-bottom: 14px;
-	padding-bottom: 8px;
+	padding:       0 0 8px 10px;
 	border-bottom: 1px solid var(--border);
+	border-left:   3px solid var(--accent);
 	letter-spacing: 0.02em;
 }
 

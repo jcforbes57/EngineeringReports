@@ -372,10 +372,44 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 
 	function warnings_html(array $warnings): string {
 		if (empty($warnings)) return '';
-		$html = '<div class="warnings-block">';
+
+		// Collapse consecutive laps for the same rule + run into a single entry.
+		// Group by rule id + run number so we only merge within the same run.
+		$groups = [];
 		foreach ($warnings as $w) {
-			$prefix = (isset($w['run']) && $w['run'] > 1) ? 'Run ' . $w['run'] . ' ' : '';
-		$detail = $prefix . 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
+			$gk = $w['rule']['id'] . '-' . ($w['run'] ?? 1);
+			$groups[$gk][] = $w;
+		}
+
+		$collapsed = [];
+		foreach ($groups as $hits) {
+			usort($hits, fn($a, $b) => ($a['run'] ?? 1) <=> ($b['run'] ?? 1) ?: $a['lap'] <=> $b['lap']);
+			$start = $hits[0];
+			$end   = $hits[0];
+			for ($i = 1; $i < count($hits); $i++) {
+				$h = $hits[$i];
+				if (($h['run'] ?? 1) === ($end['run'] ?? 1) && $h['lap'] === $end['lap'] + 1) {
+					$end = $h; // extend range
+				} else {
+					$start['lap_end'] = $end['lap'];
+					$collapsed[] = $start;
+					$start = $h;
+					$end   = $h;
+				}
+			}
+			$start['lap_end'] = $end['lap'];
+			$collapsed[] = $start;
+		}
+
+		$html = '<div class="warnings-block">';
+		foreach ($collapsed as $w) {
+			$run    = $w['run'] ?? 1;
+			$prefix = $run > 1 ? 'Run ' . $run . ' ' : '';
+			if ($w['lap_end'] !== $w['lap']) {
+				$detail = $prefix . 'Laps ' . $w['lap'] . '–' . $w['lap_end'];
+			} else {
+				$detail = $prefix . 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
+			}
 			$html .= '<div class="warning-item">'
 				. '<span class="warn-icon">&#9432;</span>'
 				. '<span class="warn-msg">' . htmlspecialchars($w['rule']['message']) . '</span>'

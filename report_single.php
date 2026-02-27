@@ -136,6 +136,16 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			const xScale = chart.scales.x;
 			if (!xScale) return;
 			const ca = chart.chartArea;
+
+			// getPixelForIndex() was removed in Chart.js v4.
+			// Use the first dataset's rendered element x-coordinate instead —
+			// this is always correct regardless of scale type or label format.
+			function getX(idx) {
+				var meta = chart.getDatasetMeta(0);
+				if (!meta || !meta.data || !meta.data[idx]) return null;
+				return meta.data[idx].x;
+			}
+
 			ctx.save();
 
 			// ── Pit-lap "Box" marker (bottom of chart area, red) ──────────
@@ -145,39 +155,44 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				ctx.textAlign    = 'center';
 				ctx.textBaseline = 'bottom';
 				md.pitLaps.forEach(function(i) {
-					ctx.fillText('Box', xScale.getPixelForIndex(i), ca.bottom - 2);
+					var x = getX(i);
+					if (x !== null) ctx.fillText('Box', x, ca.bottom - 2);
 				});
 			}
 
 			// ── Fast-lap: full-height dashed green line + label at top of chart ──
 			if (md.fastLap !== null && md.fastLap >= 0) {
-				const fx = xScale.getPixelForIndex(md.fastLap);
-				ctx.strokeStyle = 'rgba(62,207,114,0.55)';
-				ctx.lineWidth   = 1.5;
-				ctx.setLineDash([5, 4]);
-				ctx.beginPath();
-				ctx.moveTo(fx, ca.top);
-				ctx.lineTo(fx, ca.bottom);
-				ctx.stroke();
-				ctx.setLineDash([]);
-				ctx.fillStyle    = '#3ecf72';
-				ctx.font         = 'bold 10px Helvetica,Arial,sans-serif';
-				ctx.textAlign    = 'center';
-				ctx.textBaseline = 'top';
-				ctx.fillText('\u2605 Fast', fx, ca.top + 4);
+				var fx = getX(md.fastLap);
+				if (fx !== null) {
+					ctx.strokeStyle = 'rgba(62,207,114,0.55)';
+					ctx.lineWidth   = 1.5;
+					ctx.setLineDash([5, 4]);
+					ctx.beginPath();
+					ctx.moveTo(fx, ca.top);
+					ctx.lineTo(fx, ca.bottom);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.fillStyle    = '#3ecf72';
+					ctx.font         = 'bold 10px Helvetica,Arial,sans-serif';
+					ctx.textAlign    = 'center';
+					ctx.textBaseline = 'top';
+					ctx.fillText('\u2605 Fast', fx, ca.top + 4);
+				}
 			}
 
 			// ── Run-group bracket + label below x-axis ─────────────────────
 			if (md.runGroups && md.runGroups.length > 1) {
-				const yLine = xScale.bottom + 3;
-				const yText = xScale.bottom + 18;
+				var yLine = xScale.bottom + 3;
+				var yText = xScale.bottom + 18;
 				ctx.lineWidth    = 1;
 				ctx.textAlign    = 'center';
 				ctx.textBaseline = 'top';
 				ctx.font         = '9px Helvetica,Arial,sans-serif';
 				md.runGroups.forEach(function(g) {
-					const x1 = xScale.getPixelForIndex(g.start) + 2;
-					const x2 = xScale.getPixelForIndex(g.end)   - 2;
+					var x1 = getX(g.start);
+					var x2 = getX(g.end);
+					if (x1 === null || x2 === null) return;
+					x1 += 2; x2 -= 2;
 					ctx.strokeStyle = '#50505c';
 					ctx.beginPath();
 					ctx.moveTo(x1, yLine + 5); ctx.lineTo(x1, yLine);
@@ -371,6 +386,26 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 		JSON_UNESCAPED_UNICODE
 	) ?>;
 	</script>
+
+	<?php
+	// ── Temporary channel diagnostic — remove once Man1/Man2 keys are confirmed ──
+	if (!empty($laps)) {
+		$all_keys = array_keys($laps[0]);
+		$man_keys = array_values(array_filter($all_keys, fn($k) => stripos($k, 'man') !== false));
+		echo '<details style="margin:8px 0 16px;font:11px/1.6 monospace;color:#7a7a88;border:1px solid #2a2a31;border-radius:4px;padding:6px 10px;">';
+		echo '<summary style="cursor:pointer;color:#50505c;">&#x1F50D; Channel diagnostic (temporary)</summary>';
+		echo '<p style="margin:4px 0 0"><strong>Man* keys found in lap data:</strong> ';
+		echo empty($man_keys) ? '<em style="color:#e05050">(none — column names may differ from expectation)</em>' : htmlspecialchars(implode(', ', $man_keys));
+		echo '</p>';
+		echo '<p style="margin:2px 0 0"><strong>motorsportGlobal:</strong> ';
+		echo 'fastLap=' . var_export($fast_lap_idx, true);
+		echo ', pitLaps=[' . implode(',', $pit_laps) . ']';
+		echo ', runGroups=' . count($run_groups) . ' group(s)';
+		if (!empty($run_groups)) echo ' (' . implode(' | ', array_map(fn($g) => $g['label'] . ' laps ' . $g['start'] . '-' . $g['end'], $run_groups)) . ')';
+		echo '</p>';
+		echo '</details>';
+	}
+	?>
 
 	<!-- ═══════════════════════════════════════════════════════════════════════
 	     SECTION 1 — TIRES

@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS warning_rules (
 	threshold      DECIMAL(15,4)            COMMENT 'Absolute threshold (used when compare_to=absolute)',
 	compare_to     ENUM('absolute','fleet_avg','prev_session','other_channel') NOT NULL DEFAULT 'absolute',
 	compare_target VARCHAR(100)             COMMENT 'Fleet avg offset or other channel key',
-	lap_filter     ENUM('any','first','last','fast_lap') NOT NULL DEFAULT 'any',
+	lap_filter     ENUM('any','first','last','fast_lap','multiple','multiple_consecutive') NOT NULL DEFAULT 'any',
 	message        TEXT         NOT NULL,
 	active         TINYINT(1)   NOT NULL DEFAULT 1,
 	sort_order     SMALLINT     NOT NULL DEFAULT 0,

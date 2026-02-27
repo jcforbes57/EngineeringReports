@@ -413,7 +413,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$detail = $prefix . 'Lap ' . $w['lap'] . ' — actual: ' . number_format($w['actual'], 2);
 			}
 			$html .= '<div class="warning-item">'
-				. '<span class="warn-icon">&#9432;</span>'
+				. '<span class="warn-icon">&#9888;</span>'
 				. '<span class="warn-msg">' . htmlspecialchars($w['rule']['message']) . '</span>'
 				. '<span class="warn-detail">' . htmlspecialchars($detail) . '</span>'
 				. '</div>';

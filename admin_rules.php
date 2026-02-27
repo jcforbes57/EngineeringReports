@@ -18,7 +18,14 @@ $compare_opts = [
 	'prev_session'  => 'Previous session',
 	'other_channel' => 'Another channel',
 ];
-$lap_filters = ['any' => 'Any lap', 'first' => 'First lap only', 'last' => 'Last lap only', 'fast_lap' => 'Fast lap only'];
+$lap_filters = [
+	'any'                  => 'Any lap',
+	'first'                => 'First lap only',
+	'last'                 => 'Last lap only',
+	'fast_lap'             => 'Fast lap only',
+	'multiple'             => 'Multiple laps (must trigger on 2+ laps)',
+	'multiple_consecutive' => 'Multiple consecutive laps (must trigger on 2+ consecutive laps)',
+];
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 $action = $_POST['action'] ?? $_GET['action'] ?? '';

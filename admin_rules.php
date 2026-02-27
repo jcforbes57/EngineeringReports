@@ -18,7 +18,7 @@ $compare_opts = [
 	'prev_session'  => 'Previous session',
 	'other_channel' => 'Another channel',
 ];
-$lap_filters = ['any' => 'Any lap', 'first' => 'First lap only', 'last' => 'Last lap only'];
+$lap_filters = ['any' => 'Any lap', 'first' => 'First lap only', 'last' => 'Last lap only', 'fast_lap' => 'Fast lap only'];
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -95,18 +95,26 @@ $rules = $db->query(
 
 // ── Available channel names from imported lap data ─────────────────────────
 // Sample one lap row and strip stat suffixes to produce a sorted list of
-// base channel names (e.g. "FuelConsumptionL" from "FuelConsumptionL_Change").
+// base channel names and a per-channel map of which stat types exist.
 $available_channels = [];
+$channel_stats      = [];
 $sample = $db->query("SELECT data FROM laps ORDER BY id DESC LIMIT 1")->fetch();
 if ($sample) {
 	$sample_data = json_decode($sample['data'], true) ?? [];
 	foreach (array_keys($sample_data) as $key) {
 		if (preg_match('/^(.+)_(Avg|Change|End|Max|Min|Info)$/', $key, $m)) {
 			$available_channels[$m[1]] = true;
+			$channel_stats[$m[1]][]   = $m[2];
 		}
 	}
 	ksort($available_channels);
 	$available_channels = array_keys($available_channels);
+	// Sort each channel's stat list in the canonical $stats order
+	foreach ($channel_stats as &$_sl) {
+		usort($_sl, fn($a, $b) => array_search($a, $stats) <=> array_search($b, $stats));
+	}
+	unset($_sl);
+	ksort($channel_stats);
 }
 ?>
 <!DOCTYPE html>
@@ -323,6 +331,40 @@ if ($sample) {
 </main>
 
 <?php include __DIR__ . '/inc_footer.php'; ?>
+
+<script>
+(function () {
+	// Stat types available per channel, built from the most recent lap's JSON keys.
+	var channelStats = <?= json_encode($channel_stats, JSON_UNESCAPED_UNICODE) ?>;
+	var allStats     = <?= json_encode($stats,         JSON_UNESCAPED_UNICODE) ?>;
+
+	var chSel   = document.getElementById('r_channel');
+	var statSel = document.getElementById('r_stat');
+	if (!chSel || !statSel) return;
+
+	function refreshStats() {
+		var ch  = chSel.value;
+		// If we know which stats exist for this channel, use that list;
+		// otherwise fall back to showing all stat types.
+		var available = (ch && channelStats[ch]) ? channelStats[ch] : allStats;
+		var current   = statSel.value; // preserve selection across refresh
+		statSel.innerHTML = '';
+		available.forEach(function (st) {
+			var opt = document.createElement('option');
+			opt.value = opt.textContent = st;
+			if (st === current) opt.selected = true;
+			statSel.appendChild(opt);
+		});
+		// If the previous stat is not in the filtered list, default to the first available.
+		if (!statSel.value && statSel.options.length) {
+			statSel.options[0].selected = true;
+		}
+	}
+
+	chSel.addEventListener('change', refreshStats);
+	refreshStats(); // gate on page load (important when editing an existing rule)
+}());
+</script>
 
 </body>
 </html>

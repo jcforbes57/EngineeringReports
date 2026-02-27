@@ -75,17 +75,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['save', 'update'
 				   message=?, active=?, sort_order=?
 				 WHERE id=?"
 			)->execute($vals);
-			$msg = ['type' => 'success', 'text' => 'Rule updated.'];
+			// POST-Redirect-GET: redirect to edit so the form reflects the saved state
+			header('Location: admin_rules.php?action=edit&id=' . (int)$f['rule_id'] . '&msg=updated');
+			exit;
 		} else {
 			$db->prepare(
 				"INSERT INTO warning_rules
 				   (chart_section, channel, stat, operator, threshold, compare_to, compare_target, lap_filter, message, active, sort_order)
 				 VALUES (?,?,?,?,?,?,?,?,?,?,?)"
 			)->execute($vals);
-			$msg = ['type' => 'success', 'text' => 'Rule created.'];
+			$new_id = (int)$db->lastInsertId();
+			// POST-Redirect-GET: redirect to edit so the form reflects the saved state
+			header('Location: admin_rules.php?action=edit&id=' . $new_id . '&msg=created');
+			exit;
 		}
-		$edit = null;
+	} else {
+		// Validation failed — repopulate the form with submitted values so the
+		// user doesn't lose their input (especially lap_filter, channel, etc.)
+		$edit = array_merge($f, ['id' => isset($f['rule_id']) ? (int)$f['rule_id'] : null]);
 	}
+}
+
+// Flash message from redirect (POST-Redirect-GET pattern)
+if (!$msg && isset($_GET['msg'])) {
+	if ($_GET['msg'] === 'created') $msg = ['type' => 'success', 'text' => 'Rule created.'];
+	if ($_GET['msg'] === 'updated') $msg = ['type' => 'success', 'text' => 'Rule updated.'];
 }
 
 // ── Fetch all rules ───────────────────────────────────────────────────────────

@@ -84,12 +84,15 @@ foreach ($laps as $i => $lap) {
 // Fast lap — lap with the minimum actual lap time (LapTimeSeconds_End).
 // BestLapTime_End is driver-managed and unreliable for detection; using the
 // actual per-lap time directly gives an unambiguous smallest-number = fastest result.
+// Pit laps (min speed == 0) are excluded before the channel data is nulled.
 $fast_lap_idx = null;
-$_min_lt = PHP_FLOAT_MAX;
+$_min_lt  = PHP_FLOAT_MAX;
+$_pit_set = array_flip($pit_laps); // O(1) index lookup
 foreach (lap_series($laps, 'LapTimeSeconds_End') as $i => $t) {
+	if (isset($_pit_set[$i])) continue; // never pick a pit/box lap as fastest
 	if ($t !== null && $t > 30 && $t < $_min_lt) { $_min_lt = $t; $fast_lap_idx = $i; }
 }
-unset($_min_lt);
+unset($_min_lt, $_pit_set);
 
 // Null out all channel data for pit laps (min speed == 0).
 // They appear as line gaps on all charts and are skipped by warning evaluation.

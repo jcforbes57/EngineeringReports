@@ -160,14 +160,17 @@ function compute_fleet_averages(array $session_ids, array $channel_keys): array
 /**
  * Evaluate warning rules for a set of laps against optional fleet averages.
  * Returns array of ['rule' => $rule, 'lap' => $lap_number, 'actual' => $value].
+ *
+ * $fast_lap_idx: 0-based index into $laps of the fastest lap (for 'fast_lap' filter).
  */
-function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = []): array
+function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = [], ?int $fast_lap_idx = null): array
 {
 	$triggered = [];
 
 	// laps array is sorted by run_number, lap_number
 	$first_lap = !empty($laps) ? $laps[0]                   : [];
 	$last_lap  = !empty($laps) ? $laps[count($laps) - 1]    : [];
+	$fast_lap  = ($fast_lap_idx !== null && isset($laps[$fast_lap_idx])) ? $laps[$fast_lap_idx] : null;
 
 	foreach ($rules as $rule) {
 		$key    = $rule['channel'] . '_' . $rule['stat'];
@@ -179,9 +182,13 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = []): a
 			$lap_num = $lap['lap_number'];
 			$lk      = $run_num . '-' . $lap_num;
 
-			// Apply lap filter (first/last of the whole session)
+			// Apply lap filter
 			if ($filter === 'first' && ($run_num !== ($first_lap['run_number'] ?? 1) || $lap_num !== ($first_lap['lap_number'] ?? 1))) continue;
 			if ($filter === 'last'  && ($run_num !== ($last_lap['run_number']  ?? 1) || $lap_num !== ($last_lap['lap_number']  ?? 1))) continue;
+			if ($filter === 'fast_lap') {
+				if ($fast_lap === null) continue;
+				if ($run_num !== ($fast_lap['run_number'] ?? 0) || $lap_num !== ($fast_lap['lap_number'] ?? 0)) continue;
+			}
 
 			if (!array_key_exists($key, $lap) || $lap[$key] === null) continue;
 			$actual = (float)$lap[$key];

@@ -113,7 +113,7 @@ if (!empty($pit_laps)) {
 $section_warnings = [];
 foreach (['tires','fuel','performance','engine','life'] as $sec) {
 	$rules = get_warning_rules($sec);
-	$section_warnings[$sec] = evaluate_warnings($rules, $laps, $fleet_avgs);
+	$section_warnings[$sec] = evaluate_warnings($rules, $laps, $fleet_avgs, $fast_lap_idx);
 }
 ?>
 <!DOCTYPE html>

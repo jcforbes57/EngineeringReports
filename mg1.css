@@ -396,66 +396,99 @@ main.container {
 	font-weight:   600;
 }
 
-/* ── Dashboard: day groups ─────────────────────────────────────────────────── */
-.day-group {
-	margin-bottom: 48px;
-}
+/* ── Dashboard: collapsible date / session / car table ────────────────────── */
 
-.day-group-header {
-	display:       flex;
-	align-items:   center;
-	gap:           16px;
-	margin-bottom: 16px;
-	padding-bottom: 10px;
-	border-bottom: 1px solid var(--border);
-	flex-wrap:     wrap;
-}
-
-.day-date {
-	font-size:      16px;
-	font-weight:    700;
-	color:          var(--text);
-	letter-spacing: 0.01em;
-}
-
-.fleet-links {
-	display:    flex;
-	gap:        8px;
-	flex-wrap:  wrap;
-	margin-left: auto;
-}
-
-/* ── Session grid / cards ──────────────────────────────────────────────────── */
-.session-grid {
-	display:               grid;
-	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-	gap:                   16px;
-}
-
-.session-card {
+/* Date-level row */
+.dash-date {
 	background:    var(--surface);
 	border:        1px solid var(--border);
 	border-radius: var(--radius-lg);
-	padding:       0;
-	display:       flex;
-	flex-direction: column;
+	margin-bottom: 6px;
 	overflow:      hidden;
-	transition:    border-color .15s, box-shadow .15s;
-}
-.session-card:hover {
-	border-color: var(--border-hi);
-	box-shadow:   0 4px 20px rgba(0,0,0,0.35);
 }
 
-.session-card-top {
-	display:         flex;
-	align-items:     center;
-	gap:             10px;
-	padding:         12px 14px;
-	background:      var(--surface-2);
-	border-bottom:   1px solid var(--border);
+.dash-date-summary {
+	display:     flex;
+	align-items: center;
+	gap:         12px;
+	padding:     13px 20px;
+	cursor:      pointer;
+	background:  var(--surface-2);
+	user-select: none;
+	list-style:  none;
+}
+.dash-date-summary::-webkit-details-marker { display: none; }
+
+/* Session-level row */
+.dash-session {
+	border:        1px solid var(--border);
+	border-radius: var(--radius);
+	overflow:      hidden;
 }
 
+.dash-session-summary {
+	display:     flex;
+	align-items: center;
+	gap:         12px;
+	padding:     9px 16px;
+	cursor:      pointer;
+	background:  var(--surface-3);
+	user-select: none;
+	list-style:  none;
+}
+.dash-session-summary::-webkit-details-marker { display: none; }
+
+/* Animated chevron — shared by both levels */
+.dash-chevron {
+	display:     inline-block;
+	width:       12px;
+	flex-shrink: 0;
+	color:       var(--text-dim);
+	font-size:   10px;
+	transition:  transform .18s ease;
+}
+.dash-chevron::before { content: '\25B6'; }
+
+details[open] > summary .dash-chevron { transform: rotate(90deg); }
+
+/* Date header text */
+.dash-date-name {
+	font-size:   15px;
+	font-weight: 700;
+	color:       var(--text);
+}
+.dash-date-meta {
+	font-size:   12px;
+	color:       var(--text-muted);
+	margin-left: auto;
+}
+
+/* Session header text */
+.dash-session-name {
+	font-size:   13px;
+	font-weight: 700;
+	color:       var(--text);
+}
+.dash-session-meta {
+	font-size: 12px;
+	color:     var(--text-muted);
+}
+.dash-fleet-btn { margin-left: auto; }
+
+/* Date body — stacks session groups with a small gap */
+.dash-date-body {
+	display:        flex;
+	flex-direction: column;
+	gap:            6px;
+	padding:        12px 16px;
+}
+
+/* Session body — table fills the space flush */
+.dash-session-body {
+	border-top: 1px solid var(--border);
+}
+
+/* Car badge — used in dashboard table and report meta bar */
 .car-badge {
 	font-family:    var(--font-mono);
 	font-size:      12px;
@@ -468,46 +501,10 @@ main.container {
 	letter-spacing: 0.04em;
 }
 
-.session-tag {
-	font-size:   12px;
-	font-weight: 600;
-	color:       var(--text-muted);
+/* Actions column: tight width, no wrap */
+.dash-actions {
 	white-space: nowrap;
-	overflow:    hidden;
-	text-overflow: ellipsis;
-}
-
-.session-meta {
-	padding: 12px 14px;
-	flex:    1;
-}
-.meta-row {
-	display: flex;
-	gap:     8px;
-	margin-bottom: 4px;
-}
-.meta-row:last-child { margin-bottom: 0; }
-.meta-row dt {
-	font-size:   11px;
-	color:       var(--text-dim);
-	font-weight: 600;
-	width:       48px;
-	flex-shrink: 0;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	padding-top: 1px;
-}
-.meta-row dd {
-	font-size: 13px;
-	color:     var(--text);
-}
-
-.session-card-actions {
-	display:       flex;
-	gap:           8px;
-	padding:       10px 14px;
-	border-top:    1px solid var(--border);
-	background:    var(--surface-2);
+	width:       1%;
 }
 
 /* ── Empty state ───────────────────────────────────────────────────────────── */

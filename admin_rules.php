@@ -92,6 +92,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['save', 'update'
 $rules = $db->query(
 	"SELECT * FROM warning_rules ORDER BY chart_section ASC, sort_order ASC, id ASC"
 )->fetchAll();
+
+// ── Available channel names from imported lap data ─────────────────────────
+// Sample one lap row and strip stat suffixes to produce a sorted list of
+// base channel names (e.g. "FuelConsumptionL" from "FuelConsumptionL_Change").
+$available_channels = [];
+$sample = $db->query("SELECT data FROM laps ORDER BY id DESC LIMIT 1")->fetch();
+if ($sample) {
+	$sample_data = json_decode($sample['data'], true) ?? [];
+	foreach (array_keys($sample_data) as $key) {
+		if (preg_match('/^(.+)_(Avg|Change|End|Max|Min|Info)$/', $key, $m)) {
+			$available_channels[$m[1]] = true;
+		}
+	}
+	ksort($available_channels);
+	$available_channels = array_keys($available_channels);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -154,10 +170,31 @@ $rules = $db->query(
 				</div>
 
 				<div class="form-group">
-					<label for="r_channel">Channel name (without stat)</label>
+					<label for="r_channel">Channel</label>
+					<?php if (!empty($available_channels)): ?>
+					<select id="r_channel" name="channel" required>
+						<option value="">— select —</option>
+						<?php
+						// Always include the currently-saved channel even if it no longer
+						// appears in the sample data (renamed or from a deleted session).
+						$current_ch = $edit['channel'] ?? '';
+						if ($current_ch !== '' && !in_array($current_ch, $available_channels, true)): ?>
+						<option value="<?= htmlspecialchars($current_ch) ?>" selected>
+							<?= htmlspecialchars($current_ch) ?> (not in current data)
+						</option>
+						<?php endif; ?>
+						<?php foreach ($available_channels as $ch): ?>
+						<option value="<?= htmlspecialchars($ch) ?>" <?= $current_ch === $ch ? 'selected' : '' ?>>
+							<?= htmlspecialchars($ch) ?>
+						</option>
+						<?php endforeach; ?>
+					</select>
+					<?php else: ?>
 					<input type="text" id="r_channel" name="channel" required
 					       placeholder="e.g. FuelConsumptionL"
 					       value="<?= htmlspecialchars($edit['channel'] ?? '') ?>">
+					<small style="color:var(--text-muted);display:block;margin-top:4px">Import session data first to enable the channel picker.</small>
+					<?php endif; ?>
 				</div>
 
 				<div class="form-group">

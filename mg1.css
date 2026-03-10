@@ -702,7 +702,8 @@ details[open] > summary .dash-chevron { transform: rotate(90deg); }
 
 /* ── Fleet view — enlarged charts ─────────────────────────────────────────── */
 main.container.fleet {
-	max-width: 90vw;
+	width:     90vw;
+	max-width: none;
 }
 
 main.container.fleet .chart-canvas-wrap {

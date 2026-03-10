@@ -221,7 +221,7 @@ function fleet_tire_ds(string $key_tpl): array
 
 <?php include __DIR__ . '/inc_header.php'; ?>
 
-<main class="container">
+<main class="container fleet">
 
 	<!-- ── Report meta bar ──────────────────────────────────────────────────── -->
 	<div class="report-meta-bar">

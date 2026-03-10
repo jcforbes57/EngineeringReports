@@ -700,6 +700,15 @@ details[open] > summary .dash-chevron { transform: rotate(90deg); }
 	height:   300px;
 }
 
+/* ── Fleet view — enlarged charts ─────────────────────────────────────────── */
+main.container.fleet {
+	max-width: 90vw;
+}
+
+main.container.fleet .chart-canvas-wrap {
+	height: 420px;
+}
+
 .chart-grid {
 	display:               grid;
 	grid-template-columns: repeat(2, 1fr);

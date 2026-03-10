@@ -216,15 +216,15 @@ function evaluate_warnings(array $rules, array $laps, array $fleet_avgs = [], ?i
 				continue; // other compare types not yet implemented
 			}
 
-			$hit = match ($op) {
-				'>'  => $actual >  $threshold,
-				'<'  => $actual <  $threshold,
-				'>=' => $actual >= $threshold,
-				'<=' => $actual <= $threshold,
-				'='  => $actual == $threshold,
-				'!=' => $actual != $threshold,
-				default => false,
-			};
+			switch ($op) {
+				case '>':  $hit = $actual >  $threshold; break;
+				case '<':  $hit = $actual <  $threshold; break;
+				case '>=': $hit = $actual >= $threshold; break;
+				case '<=': $hit = $actual <= $threshold; break;
+				case '=':  $hit = $actual == $threshold; break;
+				case '!=': $hit = $actual != $threshold; break;
+				default:   $hit = false;
+			}
 
 			if ($hit) {
 				$rule_hits[] = [

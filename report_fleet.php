@@ -513,13 +513,13 @@ function fleet_tire_ds(string $key_tpl): array
 			usort($_lap_summary, fn($a, $b) => $a['best'] <=> $b['best']);
 			?>
 			<div class="chart-wrap-full" style="margin-top:8px;">
-			<table class="data-table">
+			<table class="data-table" style="table-layout:fixed;">
 				<thead><tr>
-					<th style="width:28px"></th>
+					<th style="width:32px"></th>
 					<th>Car</th>
-					<th class="num">Best Lap</th>
-					<th class="num">Avg Lap</th>
-					<th class="num">VSO Max (km/h)</th>
+					<th class="num" style="width:110px">Best Lap</th>
+					<th class="num" style="width:110px">Avg Lap</th>
+					<th class="num" style="width:130px">VSO Max (km/h)</th>
 				</tr></thead>
 				<tbody>
 				<?php foreach ($_lap_summary as $_i => $_row):

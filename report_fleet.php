@@ -486,6 +486,66 @@ function fleet_tire_ds(string $key_tpl): array
 			</script>
 			<?php
 
+			// ── Fastest-lap summary table ──────────────────────────────────────
+			$_lap_summary = [];
+			foreach ($sessions as $_s) {
+				$_alias  = $_s['car_alias'];
+				$_lt_v   = [];
+				$_vso_v  = [];
+				foreach ($fleet_laps[$_alias] as $_l) {
+					if (isset($_l['LapTimeSeconds_End'])     && is_numeric($_l['LapTimeSeconds_End'])     && (float)$_l['LapTimeSeconds_End'] > 30
+					&&  isset($_l['VehicleSpeedVSOSig_Min']) && is_numeric($_l['VehicleSpeedVSOSig_Min']) && (float)$_l['VehicleSpeedVSOSig_Min'] >= 50) {
+						$_lt_v[] = (float)$_l['LapTimeSeconds_End'];
+						if (isset($_l['VehicleSpeedVSOSig_Max']) && is_numeric($_l['VehicleSpeedVSOSig_Max'])) {
+							$_vso_v[] = (float)$_l['VehicleSpeedVSOSig_Max'];
+						}
+					}
+				}
+				if (!$_lt_v) continue;
+				$_lap_summary[] = [
+					'alias'   => $_alias,
+					'best'    => min($_lt_v),
+					'avg'     => array_sum($_lt_v) / count($_lt_v),
+					'vso_max' => $_vso_v ? max($_vso_v) : null,
+					'color'   => $car_color_map[$_alias] ?? '#7a8394',
+				];
+			}
+			usort($_lap_summary, fn($a, $b) => $a['best'] <=> $b['best']);
+			?>
+			<div class="chart-wrap-full" style="margin-top:8px;">
+			<table class="data-table">
+				<thead><tr>
+					<th style="width:28px"></th>
+					<th>Car</th>
+					<th class="num">Best Lap</th>
+					<th class="num">Avg Lap</th>
+					<th class="num">VSO Max (km/h)</th>
+				</tr></thead>
+				<tbody>
+				<?php foreach ($_lap_summary as $_i => $_row):
+					$_m  = (int)floor($_row['best'] / 60);
+					$_s  = $_row['best'] - $_m * 60;
+					$_best_fmt = sprintf('%d:%06.3f', $_m, $_s);
+					$_am = (int)floor($_row['avg'] / 60);
+					$_as = $_row['avg'] - $_am * 60;
+					$_avg_fmt  = sprintf('%d:%06.3f', $_am, $_as);
+				?>
+				<tr>
+					<td style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px;"><?= $_i + 1 ?></td>
+					<td>
+						<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= htmlspecialchars($_row['color']) ?>;margin-right:6px;vertical-align:middle;"></span>
+						<?= htmlspecialchars($_row['alias']) ?>
+					</td>
+					<td class="num"><?= $_best_fmt ?></td>
+					<td class="num"><?= $_avg_fmt ?></td>
+					<td class="num"><?= $_row['vso_max'] !== null ? number_format($_row['vso_max'], 1) : '—' ?></td>
+				</tr>
+				<?php endforeach; unset($_lap_summary, $_i, $_row, $_m, $_s, $_best_fmt, $_am, $_as, $_avg_fmt); ?>
+				</tbody>
+			</table>
+			</div>
+
+			<?php
 			echo '<p class="chart-sublabel">Speed (km/h)</p>';
 			$_speed_ds = array_merge(
 				fleet_all_cars_ds('VehicleSpeedVSOSig_Max', 'Max'),

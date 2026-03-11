@@ -517,9 +517,9 @@ function fleet_tire_ds(string $key_tpl): array
 				<thead><tr>
 					<th style="width:32px"></th>
 					<th>Car</th>
-					<th class="num" style="width:110px">Best Lap</th>
-					<th class="num" style="width:110px">Avg Lap</th>
-					<th class="num" style="width:130px">VSO Max (km/h)</th>
+					<th class="ctr" style="width:110px">Best Lap</th>
+					<th class="ctr" style="width:110px">Avg Lap</th>
+					<th class="ctr" style="width:130px">VSO Max (km/h)</th>
 				</tr></thead>
 				<tbody>
 				<?php foreach ($_lap_summary as $_i => $_row):
@@ -531,14 +531,14 @@ function fleet_tire_ds(string $key_tpl): array
 					$_avg_fmt  = sprintf('%d:%06.3f', $_am, $_as);
 				?>
 				<tr>
-					<td style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px;"><?= $_i + 1 ?></td>
+					<td style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px;text-align:center;"><?= $_i + 1 ?></td>
 					<td>
 						<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= htmlspecialchars($_row['color']) ?>;margin-right:6px;vertical-align:middle;"></span>
 						<?= htmlspecialchars($_row['alias']) ?>
 					</td>
-					<td class="num"><?= $_best_fmt ?></td>
-					<td class="num"><?= $_avg_fmt ?></td>
-					<td class="num"><?= $_row['vso_max'] !== null ? number_format($_row['vso_max'], 1) : '—' ?></td>
+					<td class="ctr"><?= $_best_fmt ?></td>
+					<td class="ctr"><?= $_avg_fmt ?></td>
+					<td class="ctr"><?= $_row['vso_max'] !== null ? number_format($_row['vso_max'], 1) : '—' ?></td>
 				</tr>
 				<?php endforeach; unset($_lap_summary, $_i, $_row, $_m, $_s, $_best_fmt, $_am, $_as, $_avg_fmt); ?>
 				</tbody>

@@ -294,6 +294,8 @@ main.container {
 .data-table tbody tr:hover td { background: var(--surface-2); }
 .data-table td.num,
 .data-table th.num { text-align: right; font-family: var(--font-mono); }
+.data-table td.ctr,
+.data-table th.ctr { text-align: center; font-family: var(--font-mono); }
 .data-table td.mono { font-family: var(--font-mono); font-size: 12px; }
 .data-table td.filename {
 	max-width:    220px;

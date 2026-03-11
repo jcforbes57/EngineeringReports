@@ -351,10 +351,10 @@ function fleet_tire_ds(string $key_tpl): array
 		<div class="chart-col">
 
 			<p class="chart-sublabel">Tire Temperatures — all corners (colour = corner, dash = car)</p>
-			<?php fleet_chart('°C', fleet_tire_ds('{CORNER}_WS_TEMPERATURE_Avg')); ?>
+			<?php fleet_chart('°C', fleet_tire_ds('{CORNER}_WS_TEMPERATURE_Avg'), ['y' => ['max' => 120]]); ?>
 
 			<p class="chart-sublabel">Tire Pressures — all corners</p>
-			<?php fleet_chart('PSI', fleet_tire_ds('{CORNER}_PSI_Avg'), ['y' => ['max' => 35]]); ?>
+			<?php fleet_chart('PSI', fleet_tire_ds('{CORNER}_PSI_Avg'), ['y' => ['min' => 10, 'max' => 40]]); ?>
 
 		</div>
 	</section>
@@ -367,7 +367,24 @@ function fleet_tire_ds(string $key_tpl): array
 		<div class="chart-col">
 
 			<p class="chart-sublabel">Fuel per Lap (L)</p>
-			<?php fleet_chart('L / lap', fleet_all_cars_ds('FuelConsumptionL_Change')); ?>
+			<?php
+			// Y-max: slightly above mode so outliers don't squash the normal range.
+			$_f_all = [];
+			foreach ($sessions as $_s) {
+				foreach (fleet_lap_series($fleet_laps[$_s['car_alias']], 'FuelConsumptionL_Change', $lap_keys) as $_fv) {
+					if ($_fv !== null && $_fv > 0) $_f_all[] = $_fv;
+				}
+			}
+			$_fuel_fleet_scale = [];
+			if ($_f_all) {
+				$_fc = [];
+				foreach ($_f_all as $_fv) { $_fk = (string)round($_fv, 1); $_fc[$_fk] = ($_fc[$_fk] ?? 0) + 1; }
+				arsort($_fc);
+				$_fuel_fleet_scale = ['y' => ['max' => round((float)array_key_first($_fc) * 1.25, 2)]];
+			}
+			unset($_f_all, $_fc);
+			fleet_chart('L / lap', fleet_all_cars_ds('FuelConsumptionL_Change'), $_fuel_fleet_scale);
+			?>
 
 			<p class="chart-sublabel">Total Fuel Used (L)</p>
 			<?php fleet_chart('L total', fleet_all_cars_ds('NVRAM_TotalFuelConsumption_End')); ?>
@@ -384,7 +401,7 @@ function fleet_tire_ds(string $key_tpl): array
 
 			<p class="chart-sublabel">Lap Times (sec)</p>
 			<?php
-			// Compute a sensible y-axis max from all cars' lap times
+			// Y-axis: min = best lap −10%, max = best lap +30% across all cars.
 			$_all_lt = [];
 			foreach ($sessions as $_s) {
 				foreach (fleet_lap_series($fleet_laps[$_s['car_alias']], 'LapTimeSeconds_End', $lap_keys) as $_v) {
@@ -392,11 +409,11 @@ function fleet_tire_ds(string $key_tpl): array
 				}
 			}
 			$_lt_scale = [];
-			if (count($_all_lt) >= 3) {
-				sort($_all_lt);
-				$_p90      = $_all_lt[(int)floor(0.90 * (count($_all_lt) - 1))];
+			if ($_all_lt) {
+				$_best     = min($_all_lt);
 				$_lt_scale = ['y' => [
-					'max'   => (int)ceil($_p90 * 1.12),
+					'min'   => (int)floor($_best * 0.90),
+					'max'   => (int)ceil($_best  * 1.30),
 					'ticks' => [
 						'color'    => '#4e5566',
 						'font'     => ['size' => 11],
@@ -404,12 +421,13 @@ function fleet_tire_ds(string $key_tpl): array
 					],
 				]];
 			}
-			unset($_all_lt, $_p90);
-			// We can't inject a JS function into json_encode — output the chart manually
+			unset($_all_lt, $_best);
+			// We can’t inject a JS function into json_encode — output the chart manually
 			$_lap_ds  = fleet_all_cars_ds('LapTimeSeconds_End');
 			$_ds_json = json_encode($_lap_ds, JSON_UNESCAPED_UNICODE);
 			$_bp      = $bottom_pad;
 			$_lap_id  = 'flt_' . $flt_ci++;
+			$_ymin    = isset($_lt_scale['y']['min']) ? (int)$_lt_scale['y']['min'] : 'undefined';
 			$_ymax    = isset($_lt_scale['y']['max']) ? (int)$_lt_scale['y']['max'] : 'undefined';
 			echo '<div class="chart-wrap-full"><div class="chart-canvas-wrap"><canvas id="' . $_lap_id . '"></canvas></div></div>';
 			?>
@@ -444,7 +462,7 @@ function fleet_tire_ds(string $key_tpl): array
 						scales: {
 							x: { ticks: { color:'#4e5566', font:{size:11} }, grid: { color:'#1a1d23' },
 							     title: { display:true, text:'Lap', color:'#4e5566', font:{size:11} } },
-							y: { max: <?= $_ymax ?>,
+							y: { min: <?= $_ymin ?>, max: <?= $_ymax ?>,
 							     ticks: {
 							         color:'#4e5566', font:{size:11},
 							         callback: function(v) {

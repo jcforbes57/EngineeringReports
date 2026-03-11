@@ -457,7 +457,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$ds[] = chart_dataset($corner . ' Avg Fleet', $tc[$corner],
 					fleet_series($fleet_avgs, $lap_keys, $key), true);
 			}
-			render_chart('ch_tire_temp', $ds, '°C');
+			render_chart('ch_tire_temp', $ds, '°C', ['y' => ['max' => 120]]);
 			?>
 
 			<!-- Tire pressures — full width -->
@@ -475,7 +475,7 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				$ds[] = chart_dataset($corner . ' PSI Fleet', $tc[$corner],
 					fleet_series($fleet_avgs, $lap_keys, $key), true);
 			}
-			render_chart('ch_tire_psi', $ds, 'PSI', ['y' => ['max' => 35]]);
+			render_chart('ch_tire_psi', $ds, 'PSI', ['y' => ['min' => 10, 'max' => 40]]);
 			?>
 
 		</div>
@@ -496,9 +496,24 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 		</div>
 		<?php
+		// Fuel/lap Y-max: slightly above the mode so outliers don't squash the range.
+		$_fuel_vals = array_filter(lap_series($laps, 'FuelConsumptionL_Change'),
+			fn($v) => $v !== null && $v > 0);
+		$_fuel_y_max = null;
+		if ($_fuel_vals) {
+			$_f_counts = [];
+			foreach ($_fuel_vals as $_fv) {
+				$_fk = (string)round($_fv, 1);
+				$_f_counts[$_fk] = ($_f_counts[$_fk] ?? 0) + 1;
+			}
+			arsort($_f_counts);
+			$_fuel_y_max = round((float)array_key_first($_f_counts) * 1.25, 2);
+		}
+		$_fuel_y = ['title' => ['display' => true, 'text' => 'L / lap',
+		             'color' => '#50505c', 'font' => ['size' => 11]]];
+		if ($_fuel_y_max !== null) $_fuel_y['max'] = $_fuel_y_max;
 		$fuel_scales = [
-			'y'  => ['title' => ['display' => true, 'text' => 'L / lap',
-			          'color' => '#50505c', 'font' => ['size' => 11]]],
+			'y'  => $_fuel_y,
 			'y1' => [
 				'type'     => 'linear',
 				'position' => 'right',
@@ -570,16 +585,17 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 				</div>
 			</div>
 			<?php
-			// Y-axis: scale to typical laps by capping at 90th-percentile × 1.12.
-			// Out laps and pit laps (outliers) cause the line to exit the top of the chart,
-			// which is intentional — "Box" / run-group annotations explain those laps.
+			// Y-axis: min = best lap −10%, max = best lap +30%.
+			// Slower laps (out/pit) exit the top of the chart intentionally.
 			$_lt_vals = array_filter(lap_series($laps, 'LapTimeSeconds_End'),
 				fn($v) => $v !== null && $v > 30);
 			$_lt_scale = [];
-			if (count($_lt_vals) >= 3) {
-				$_sorted = array_values($_lt_vals); sort($_sorted);
-				$_p90    = $_sorted[(int)floor(0.90 * (count($_sorted) - 1))];
-				$_lt_scale = ['y' => ['max' => (int)ceil($_p90 * 1.12)]];
+			if ($_lt_vals) {
+				$_best     = min($_lt_vals);
+				$_lt_scale = ['y' => [
+					'min' => (int)floor($_best * 0.90),
+					'max' => (int)ceil($_best  * 1.30),
+				]];
 			}
 
 			// LapTimeSeconds_End = actual per-lap time; BestLapTime_End = running best (stepped line)

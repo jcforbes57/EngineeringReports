@@ -402,12 +402,12 @@ function fleet_tire_ds(string $key_tpl): array
 			<p class="chart-sublabel">Lap Times (sec)</p>
 			<?php
 			// Y-axis: min = best lap −10%, max = best lap +30% across all cars.
-			// Invalid laps excluded: max speed < 50 kph or lap time ≤ 30 s.
+			// Invalid laps excluded: min speed < 50 kph or lap time ≤ 30 s.
 			$_all_lt = [];
 			foreach ($sessions as $_s) {
 				foreach ($fleet_laps[$_s['car_alias']] as $_l) {
 					if (isset($_l['LapTimeSeconds_End'])     && is_numeric($_l['LapTimeSeconds_End'])     && (float)$_l['LapTimeSeconds_End'] > 30
-					&&  isset($_l['VehicleSpeedVSOSig_Max']) && is_numeric($_l['VehicleSpeedVSOSig_Max']) && (float)$_l['VehicleSpeedVSOSig_Max'] >= 50) {
+					&&  isset($_l['VehicleSpeedVSOSig_Min']) && is_numeric($_l['VehicleSpeedVSOSig_Min']) && (float)$_l['VehicleSpeedVSOSig_Min'] >= 50) {
 						$_all_lt[] = (float)$_l['LapTimeSeconds_End'];
 					}
 				}

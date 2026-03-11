@@ -586,12 +586,12 @@ foreach (['tires','fuel','performance','engine','life'] as $sec) {
 			</div>
 			<?php
 			// Y-axis: min = best lap −10%, max = best lap +30%.
-			// Invalid laps are excluded: max speed < 50 kph (pit/formation/red-flag)
+			// Invalid laps are excluded: min speed < 50 kph (pit/formation/red-flag)
 			// or lap time ≤ 30 s. Slower valid laps exit the top of the chart intentionally.
 			$_lt_vals = [];
 			foreach ($laps as $_l) {
 				if (isset($_l['LapTimeSeconds_End'])     && is_numeric($_l['LapTimeSeconds_End'])     && (float)$_l['LapTimeSeconds_End'] > 30
-				&&  isset($_l['VehicleSpeedVSOSig_Max']) && is_numeric($_l['VehicleSpeedVSOSig_Max']) && (float)$_l['VehicleSpeedVSOSig_Max'] >= 50) {
+				&&  isset($_l['VehicleSpeedVSOSig_Min']) && is_numeric($_l['VehicleSpeedVSOSig_Min']) && (float)$_l['VehicleSpeedVSOSig_Min'] >= 50) {
 					$_lt_vals[] = (float)$_l['LapTimeSeconds_End'];
 				}
 			}
